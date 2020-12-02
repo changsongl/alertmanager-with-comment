@@ -62,7 +62,11 @@ import (
 	"github.com/prometheus/alertmanager/ui"
 )
 
+// 这些变量是普罗米修斯指标，用于记录alertmanager的数据。这里展示出了一个观点，
+// 就是告警系统本身也是需要被监控和告警的。
 var (
+
+	// http请求耗时的histogram指标。
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
@@ -71,6 +75,9 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+
+	// 创建http回复体的大小的histogram指标，这里使用了ExponentialBuckets，去
+	// 提供bucket。给予初始值，增长乘积，和增长次数。来生成float64切片。
 	responseSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_response_size_bytes",
@@ -79,33 +86,45 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+
+	// 创建alertmanager集群是否开启的gauge指标，用于监控alertmanager集群的状态。
 	clusterEnabled = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_cluster_enabled",
 			Help: "Indicates whether the clustering is enabled or not.",
 		},
 	)
+
+	// TODO: 待确定。创建alertmanager配置的告警接收数量，gauge指标。
 	configuredReceivers = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_receivers",
 			Help: "Number of configured receivers.",
 		},
 	)
+
+	// TODO: 待确定。创建alertmanager配置的集成数量，gauge指标。
 	configuredIntegrations = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "alertmanager_integrations",
 			Help: "Number of configured integrations.",
 		},
 	)
+
+	// prom日志配置结构体，里面包含允许的日志等级和日志的格式。
 	promlogConfig = promlog.Config{}
 )
 
+// init golang 函数，会在main函数之前运行。把之前创建的所有指标注册到普罗米修斯
+// 默认注册表里。
 func init() {
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
+
+	// 创建新的gauge指标并注册，此指标主要展示Version，Revision，Branch，GoVersion。
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -120,6 +139,8 @@ func instrumentHandler(handlerName string, handler http.HandlerFunc) http.Handle
 	)
 }
 
+// 默认监听的集群端口，通过此端口来进行接收gossip协议的传输数据。alertmanager通过
+// gossip协议互相传达集群状态，来实现此节点对整个集群状态的感知。
 const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
@@ -168,30 +189,47 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	return integrations, nil
 }
 
+// 程序入口main函数，interesting写法。
 func main() {
 	os.Exit(run())
 }
 
+// run函数，真实的程序主函数。初始化，并开启相应的服务。阻塞监听reload和关闭信号，会进行平滑退出。
 func run() int {
+
+	// 设置golang取样配置参数，只有在配置环境为DEBUG才会生效。
 	if os.Getenv("DEBUG") != "" {
+		// go routine 阻塞频率的取样设置，20代表20次阻塞才进行一次取样。
 		runtime.SetBlockProfileRate(20)
+		// 设置mutux锁的取样设置，20次锁时间才进行一次取样。
 		runtime.SetMutexProfileFraction(20)
 	}
 
+	// 所有的用户传参，也可以通过--help指令或者help参数来查看英文的指示描述。
 	var (
+		// 配置文件目录
 		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		// 数据保存的目录
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
+		// 数据保存的时间长度
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
+		// golang垃圾回收间隔设置
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
+		// TODO: 好奇为什么需要这个外部url？
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		// alertmanager监听的地址和端口，默认监听0.0.0.0:9093
 		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		// 设置最大get http请求并发数量，通常设置为系统逻辑核数
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
+		// alertmanager本身的http服务的，请求超时时间。如为0，则无超时时间
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
+		// 设置监听集群的地址，可以设置为空字符串去禁止集群
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(defaultClusterAddr).String()
+		// TODO: 集群配置？？？？？
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		peers                = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout          = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
@@ -205,23 +243,31 @@ func run() int {
 		peerReconnectTimeout = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
 	)
 
+	// 通过flag设置日志配置
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
 
+	// 设置版本flag，会进行版本，分支，修订，build用户，build日期和go版本的打印。
 	kingpin.Version(version.Print("alertmanager"))
+	// 配置help flag的短名称 h
 	kingpin.CommandLine.GetFlag("help").Short('h')
+	// 读取用户运行传参
 	kingpin.Parse()
 
+	// 通过日志配置初始化logger
 	logger := promlog.New(&promlogConfig)
 
+	// 打印版本信息日志
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
 
+	// 创建alertmanager的数据目录，并给予读写权限。
 	err := os.MkdirAll(*dataDir, 0777)
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
 		return 1
 	}
 
+	// 初始化集群
 	var peer *cluster.Peer
 	if *clusterBindAddr != "" {
 		peer, err = cluster.Create(
@@ -241,13 +287,16 @@ func run() int {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
 			return 1
 		}
+		// 设置普罗米修斯集群指标，为已启用
 		clusterEnabled.Set(1)
 	}
 
+	// 配置 stop channel 和 等待组，确保优雅退出
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
+	// TODO: 配置集群广播日志信息配置，并配置广播？？？
 	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
@@ -268,6 +317,7 @@ func run() int {
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
+	// 静默配置，并生成静默对象，如果有配置集群，则设置集群广播。
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
@@ -287,16 +337,19 @@ func run() int {
 
 	// Start providers before router potentially sends updates.
 	wg.Add(1)
+	// 维护静默产生的data数据，每十五分钟进行下数据删除。
 	go func() {
 		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc)
 		wg.Done()
 	}()
 
+	// defer wg.Wait 确保最后所有的任务都优雅退出之后，才会程序退出。
 	defer func() {
 		close(stopc)
 		wg.Wait()
 	}()
 
+	// 集群peer的状态监听器已经进行注册成功，现在可以进行加入集群和初始化状态。
 	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
 		err = peer.Join(
@@ -316,6 +369,7 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
+	// 创建监控对象
 	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, logger)
 	if err != nil {
 		level.Error(logger).Log("err", err)
@@ -326,10 +380,12 @@ func run() int {
 	var disp *dispatch.Dispatcher
 	defer disp.Stop()
 
+	// 创建分组方法
 	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 		return disp.Groups(routeFilter, alertFilter)
 	}
 
+	// alertmanager api结构体，包含所有版本V1,V2的http接口。
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
@@ -481,6 +537,8 @@ func run() int {
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
 
+
+	// 开启alertmanager http服务
 	go func() {
 		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
@@ -494,6 +552,7 @@ func run() int {
 		}()
 	}()
 
+	// reload信号监听
 	var (
 		hup      = make(chan os.Signal, 1)
 		hupReady = make(chan bool)
@@ -518,6 +577,8 @@ func run() int {
 	// Wait for reload or termination signals.
 	close(hupReady) // Unblock SIGHUP handler.
 
+	// 优雅退出监听。其实全部的优雅退出逻辑在defer里面。多个defer以先进后出的形式
+	// 一个接一个的优雅退出。
 	for {
 		select {
 		case <-term:
@@ -527,6 +588,8 @@ func run() int {
 			return 1
 		}
 	}
+
+	// TODO: 列举defer的执行顺序和作用。
 }
 
 // clusterWait returns a function that inspects the current peer state and returns
