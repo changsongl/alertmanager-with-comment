@@ -273,16 +273,26 @@ func (d *Dispatcher) Stop() {
 // Returns false iff notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
+
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
+// ------------------------------------------------------------------
+// 处理告警，得到相应分组，并对相应的分组插入这个告警。
+// @param alert 告警结构体
+// @param route 已经匹配上的分组路由
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+	// 根据分组路由的信息，获得此分组下的所有label。
+	// 并根据所得label得到唯一id(finger print)。
 	groupLabels := getGroupLabels(alert, route)
-
 	fp := groupLabels.Fingerprint()
 
+	// 加锁进行hashmap操作
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	// 通过分组路由获得分组map，如果分组列表hashmap不存在这个分组，
+	// 则进行创建。分组map里面key为分组finger print，value为具
+	// 体唯一标识的分组。
 	group, ok := d.aggrGroups[route]
 	if !ok {
 		group = map[model.Fingerprint]*aggrGroup{}
@@ -290,13 +300,18 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	}
 
 	// If the group does not exist, create it.
+	// ----------------------------------------------------
+	// 假如具体唯一标识的分组不存在这个分组map里面，则进行创建。
 	ag, ok := group[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
 		group[fp] = ag
+		// 普罗米修斯的分组数量指标进行加一
 		d.metrics.aggrGroups.Inc()
 
+		// 开启新的协成，运行此唯一标识分组
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+			// 根据当前context的状态，来进行告警的处理。
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 			if err != nil {
 				lvl := level.Error(d.logger)
@@ -304,6 +319,8 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 					// It is expected for the context to be canceled on
 					// configuration reload or shutdown. In this case, the
 					// message should only be logged at the debug level.
+					// ---------------------------------------------------
+					// 假如错误是因为reload或者关闭而导致的，那样日志等级为debug
 					lvl = level.Debug(d.logger)
 				}
 				lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
@@ -312,12 +329,16 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		})
 	}
 
+	// 插入alert到这个唯一标识的分组里。
 	ag.insert(alert)
 }
 
+// 根据分组路由的信息，获得此分组下的所有label。
 func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
 	groupLabels := model.LabelSet{}
 	for ln, lv := range alert.Labels {
+		// 检查路由规则，如果label在路由规则里，或者路由规则为全label group，
+		// 则加入label到label set。
 		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
 			groupLabels[ln] = lv
 		}
@@ -347,6 +368,9 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
+// ------------------------------------------------------------------
+// 创建一个新的告警聚合分组，在同一时间下aggrGroup只会存在一个对象。这个对象
+// 被保存在一个hash里面。
 func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
@@ -365,6 +389,8 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
+	// ------------------------------------------------
+	// 设置一次使用的group wait timer，发送第一批的告警消息
 	ag.next = time.NewTimer(ag.opts.GroupWait)
 
 	return ag
@@ -431,7 +457,10 @@ func (ag *aggrGroup) stop() {
 }
 
 // insert inserts the alert into the aggregation group.
+// ------------------------------------------------------
+// 插入告警到这个唯一标识分组里
 func (ag *aggrGroup) insert(alert *types.Alert) {
+	// 设置这个告警消息
 	if err := ag.alerts.Set(alert); err != nil {
 		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
 	}
@@ -440,6 +469,8 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 	// alert is already over.
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
+	// 如果现在分组里的消息没有flush，并且计算出现在时间在分组等待时间之后，
+	// 可以发送这个分组。则reset这个分组的timer来触发flush。
 	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
 		ag.next.Reset(0)
 	}
