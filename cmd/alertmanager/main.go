@@ -469,6 +469,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
+		// 创建静默，抑制器并放到pipeline里面
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
 		pipeline := pipelineBuilder.New(
@@ -487,6 +488,7 @@ func run() int {
 			silencer.Mutes(labels)
 		})
 
+		// 创建alertmanager调度器
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger, dispMetrics)
 		routes.Walk(func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
@@ -503,6 +505,7 @@ func run() int {
 			}
 		})
 
+		// 独立协成去运行调度器和抑制器
 		go disp.Run()
 		go inhibitor.Run()
 

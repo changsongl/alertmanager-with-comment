@@ -38,6 +38,8 @@ type DispatcherMetrics struct {
 }
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
+// -----------------------------------------------------------------
+// 生成普罗米修斯分组数量和处理告警时长指标
 func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 	m := DispatcherMetrics{
 		aggrGroups: prometheus.NewGauge(
@@ -63,18 +65,21 @@ func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
+// --------------------------------------------------------------
+// 调度器对象，调度整个告警处理的核心流程。
 type Dispatcher struct {
-	route   *Route
-	alerts  provider.Alerts
-	stage   notify.Stage
-	metrics *DispatcherMetrics
+	route   *Route // 分组的路由，负责告警label的匹配，树状结构
+	alerts  provider.Alerts // 告警集合
+	stage   notify.Stage // TODO: ????，感觉是根据context状态，来决定下个阶段
+	metrics *DispatcherMetrics // 普罗米修斯调取器相关指标
 
-	marker  types.Marker
-	timeout func(time.Duration) time.Duration
+	marker  types.Marker // 告警标记对象，标记高级被静默或/和抑制
+	timeout func(time.Duration) time.Duration // TODO: ????, 自定义的timeout方法？
 
-	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup
-	mtx        sync.RWMutex
+	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup // 分组列表map，所以分组都会在这里存放
+	mtx        sync.RWMutex // 读写锁，用来操作分组map时使用
 
+	// 关闭的通道，上下文和方法
 	done   chan struct{}
 	ctx    context.Context
 	cancel func()
@@ -105,7 +110,10 @@ func NewDispatcher(
 }
 
 // Run starts dispatching alerts incoming via the updates channel.
+// ----------------------------------------------------------------
+// 运行调度器，初始化分组列表map和普罗米修斯分组计数指标。
 func (d *Dispatcher) Run() {
+	// 初始化结束通道
 	d.done = make(chan struct{})
 
 	d.mtx.Lock()
@@ -114,11 +122,14 @@ func (d *Dispatcher) Run() {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 	d.mtx.Unlock()
 
+	// 运行调度器子运行函数
 	d.run(d.alerts.Subscribe())
 	close(d.done)
 }
 
+// 调度器子运行方法，包含调度器运行的所有逻辑。
 func (d *Dispatcher) run(it provider.AlertIterator) {
+	// 创建清理ticker，其负责每30秒，检查所有的告警分组。
 	cleanup := time.NewTicker(30 * time.Second)
 	defer cleanup.Stop()
 
@@ -126,9 +137,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	for {
 		select {
+		// 收到告警事件
 		case alert, ok := <-it.Next():
+			// 如果告警的通道被关闭，而且数据已经读取完毕，则返回。
 			if !ok {
 				// Iterator exhausted for some reason.
+				// ------------------------------------
+				// 记录下alert遍历器的错误
 				if err := it.Err(); err != nil {
 					level.Error(d.logger).Log("msg", "Error on alert update", "err", err)
 				}
@@ -138,22 +153,29 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			level.Debug(d.logger).Log("msg", "Received alert", "alert", alert)
 
 			// Log errors but keep trying.
+			// ----------------------------------
+			// 检查遍历器的错误，如果有错误则直接跳到下个循环
 			if err := it.Err(); err != nil {
 				level.Error(d.logger).Log("msg", "Error on alert update", "err", err)
 				continue
 			}
 
+			// 根据这个告警的所有label来匹配分组，对匹配上的路由和告警进行处理
 			now := time.Now()
 			for _, r := range d.route.Match(alert.Labels) {
 				d.processAlert(alert, r)
 			}
+			// 记录处理这个告警的时间到普罗米修斯指标中
 			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 
-		case <-cleanup.C:
+		case <-cleanup.C: // 清理周期
+			// 锁住调度器锁
 			d.mtx.Lock()
-
+			// 循环分组列表，并查看每个分组下的唯一标识分组
 			for _, groups := range d.aggrGroups {
 				for _, ag := range groups {
+					// 如果这个唯一标识分组为空，终止并删除分组。
+					// 普罗米修斯计数-1
 					if ag.empty() {
 						ag.stop()
 						delete(groups, ag.fingerprint())
@@ -253,6 +275,8 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 }
 
 // Stop the dispatcher.
+// ---------------------------
+// 停止调度器。调用cancel方法，并等待done通道，完成则代表已经取消成功。
 func (d *Dispatcher) Stop() {
 	if d == nil {
 		return
@@ -449,6 +473,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 	}
 }
 
+// 停止分组方法，cancel和并阻塞等待done通道
 func (ag *aggrGroup) stop() {
 	// Calling cancel will terminate all in-process notifications
 	// and the run() loop.
