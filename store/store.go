@@ -57,6 +57,8 @@ func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 }
 
 // Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
+// -----------------------------------------------------------------------------------------
+// 设置定时器，每次触发，对已解决告警进行垃圾回收
 func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -70,6 +72,7 @@ func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// 告警垃圾回收方法，进行告警上锁，删除已解决的告警，并对已解决的告警调用callback方法。
 func (a *Alerts) gc() {
 	a.Lock()
 	defer a.Unlock()

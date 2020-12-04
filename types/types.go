@@ -52,13 +52,20 @@ type Marker interface {
 	// SetActive sets the provided alert to AlertStateActive and deletes all
 	// SilencedBy and InhibitedBy entries.
 	SetActive(alert model.Fingerprint)
+
 	// SetSilenced replaces the previous SilencedBy by the provided IDs of
 	// silences, including the version number of the silences state. The set
 	// of provided IDs is supposed to represent the complete set of relevant
 	// silences. If no ID is provided and InhibitedBy is already empty, this
 	// call is equivalent to SetActive. Otherwise, it sets
 	// AlertStateSuppressed.
+	// ---------------------------------------------------------------------
+	// SetSilenced 通过新的静默IDs代替以前的 AlertStatus.SilencedBy，包含静默状态
+	// 的版本号。所有的静默IDs集合是全部的相关静默。如果没有提供ID，与此同时
+	// AlertStatus.InhibitedBy 也已经是空的，这次调用等同于 SetActive。否则，它将
+	// 设置为 AlertStateSuppressed。
 	SetSilenced(alert model.Fingerprint, version int, silenceIDs ...string)
+
 	// SetInhibited replaces the previous InhibitedBy by the provided IDs of
 	// alerts. In contrast to SetSilenced, the set of provided IDs is not
 	// expected to represent the complete set of inhibiting alerts. (In
@@ -66,6 +73,11 @@ type Marker interface {
 	// this expectation might change in the future.) If no ID is provided and
 	// SilencedBy is already empty, this call is equivalent to
 	// SetActive. Otherwise, it sets AlertStateSuppressed.
+	// -----------------------------------------------------------------------
+	// SetInhibited 通过告警IDs来替换掉以前的 AlertStatus.InhibitedBy。对比 SetSilenced，
+	// 提供的告警是不被代表是全部的抑制告警。换句话来说，就是这个方法只会被调用的传参为一个或者
+	// 零个ID。 然而，这个可能会在将来进行个更改。如果这个ID没有提供，并且 AlertStatus.SilencedBy
+	// 已经是空的，这个调用则等同于 SetActive。否则，它将被设置为 AlertStateSuppressed。
 	SetInhibited(alert model.Fingerprint, alertIDs ...string)
 
 	// Count alerts of the given state(s). With no state provided, count all

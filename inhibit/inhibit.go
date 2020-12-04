@@ -57,6 +57,7 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker,
 }
 
 func (ih *Inhibitor) run(ctx context.Context) {
+	// 开始订阅告警
 	it := ih.alerts.Subscribe()
 	defer it.Close()
 
@@ -65,11 +66,17 @@ func (ih *Inhibitor) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case a := <-it.Next():
+			// 得到告警，
 			if err := it.Err(); err != nil {
 				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
+
 			// Update the inhibition rules' cache.
+			// -----------------------------------------
+			// 循环每个抑制rule，假如当前告警匹配上某个source。
+			// 缓存这个告警到这个抑制rule的告警map里，map的key
+			// 为label的finger print，value为alert。
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {
 					if err := r.scache.Set(a); err != nil {
@@ -82,21 +89,28 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 // Run the Inhibitor's background processing.
+// -----------------------------------------------
+// alertmanager后台运行抑制器。
 func (ih *Inhibitor) Run() {
 	var (
 		g   run.Group
 		ctx context.Context
 	)
 
+	// 创建context和cancel方法
 	ih.mtx.Lock()
 	ctx, ih.cancel = context.WithCancel(context.Background())
 	ih.mtx.Unlock()
 	runCtx, runCancel := context.WithCancel(ctx)
 
+	// 循环每个抑制规则，然后启动独立go routine去运行垃圾回收
 	for _, rule := range ih.rules {
 		go rule.scache.Run(runCtx, 15*time.Minute)
 	}
 
+	// 添加抑制方法到运行组，运行组并行运行。
+	// 在所有的方法退出时才会退出，
+	// 有错误时将返回第一个错误，一个return后，会中断其他方法。
 	g.Add(func() error {
 		ih.run(runCtx)
 		return nil
@@ -124,21 +138,28 @@ func (ih *Inhibitor) Stop() {
 
 // Mutes returns true iff the given label set is muted. It implements the Muter
 // interface.
+// -----------------------------------------------------------------------------
+// 禁言方法，通过告警的标签，匹配抑制规则。如果被抑制则返回true。
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
+		// 匹配target，如果连target都没有命中可直接去检查下个rule
 		if !r.TargetMatchers.Match(lset) {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
 		}
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
+		// -----------------------------------------------------------------------------
+		// 匹配source，假如匹配成功的
 		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Match(lset)); eq {
+			// 设置当前告警已经被匹配上的source抑制
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			return true
 		}
 	}
+	// 未匹配成功，则设置没有被告警抑制
 	ih.marker.SetInhibited(fp)
 
 	return false
