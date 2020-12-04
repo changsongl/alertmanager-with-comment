@@ -111,7 +111,11 @@ func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 }
 
 // Mutes implements the Muter interface.
+// ----------------------------------------------------
+// Silencer 实现 Muter interface。根据label来静默当前告警。
 func (s *Silencer) Mutes(lset model.LabelSet) bool {
+	// 获得当前告警label的指纹，通过指纹获得之前静默的id和
+	// 静默规则总版本号。
 	fp := lset.Fingerprint()
 	ids, markerVersion, _ := s.marker.Silenced(fp)
 
@@ -120,26 +124,37 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 		sils       []*pb.Silence
 		newVersion = markerVersion
 	)
+
+	// 之前的总版本号和现在的静默版本号一直，则代表可以继续检
+	// 查之前的静默规则，查看之前相关的静默规则现在是否还有效。
 	if markerVersion == s.silences.Version() {
 		// No new silences added, just need to check which of the old
 		// silences are still relevant.
+
+		// 之前这个告警的静默规则是空的，则代表现在也无任何规则。则返回false。
 		if len(ids) == 0 {
 			// Super fast path: No silences ever applied to this
 			// alert, none have been added. We are done.
 			return false
 		}
+
 		// This is still a quite fast path: No silences have been added,
 		// we only need to check which of the applicable silences are
 		// currently active. Note that newVersion is left at
 		// markerVersion because the Query call might already return a
 		// newer version, which is not the version our old list of
 		// applicable silences is based on.
+		// --------------------------------------------------------------
+		// 根据静默的IDs，来查找这些还是处在active的静默规则
 		sils, _, err = s.silences.Query(
 			QIDs(ids...),
 			QState(types.SilenceStateActive),
 		)
 	} else {
 		// New silences have been added, do a full query.
+		// --------------------------------------------------------------
+		// 因为版本已经发生了变化，因此需要全量的去查看现在匹配这个告警label的
+		// 全量active静默规则。
 		sils, newVersion, err = s.silences.Query(
 			QState(types.SilenceStateActive),
 			QMatches(lset),
@@ -148,10 +163,15 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	if err != nil {
 		level.Error(s.logger).Log("msg", "Querying silences failed, alerts might not get silenced correctly", "err", err)
 	}
+	// 如果新的静默规则为空，则代表现在并无静默规则，则设置
+	// 当前无静默，并且到更新版本。
 	if len(sils) == 0 {
 		s.marker.SetSilenced(fp, newVersion)
 		return false
 	}
+
+	// 如果len无变化，则检查所有的id是否一致，如果发现不一致，则
+	// 标记有变化。
 	idsChanged := len(sils) != len(ids)
 	if !idsChanged {
 		// Length is the same, but is the content the same?
@@ -162,6 +182,8 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 			}
 		}
 	}
+
+	// 静默id有变化，则从新排序id
 	if idsChanged {
 		// Need to recreate ids.
 		ids = make([]string, len(sils))
@@ -170,6 +192,9 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 		}
 		sort.Strings(ids) // For comparability.
 	}
+
+	// 如果版本有变化，或者active的静默ids变化，则进行对此
+	// 告警进行重新配置静默。
 	if idsChanged || newVersion != markerVersion {
 		// Update marker only if something changed.
 		s.marker.SetSilenced(fp, newVersion, ids...)
@@ -685,10 +710,14 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
+// ------------------------------------------------------------------------
+// 查询静默规则，使用protobuf结构体，但是获取规则非GRPC调用。
 func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
+	// 普罗米修斯指标进行处理
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
+	// 应用param到query上
 	q := &query{}
 	for _, p := range params {
 		if err := p(q); err != nil {
@@ -696,6 +725,8 @@ func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
 			return nil, s.Version(), err
 		}
 	}
+
+	// 查询query
 	sils, version, err := s.query(q, s.now())
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
@@ -720,6 +751,8 @@ func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	return len(sils), nil
 }
 
+// 查询query和当前时间来查询静默规则，如果未提供静默id，则进行全量查询。
+// 如果提供，则进行部分查询。
 func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	// If we have no ID constraint, all silences are our base set.  This and
 	// the use of post-filter functions is the trivial solution for now.
@@ -728,18 +761,20 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	// 已提供id，查看现在这些id是否还存在
 	if q.ids != nil {
 		for _, id := range q.ids {
 			if s, ok := s.st[id]; ok {
 				res = append(res, s.Silence)
 			}
 		}
-	} else {
+	} else { // 未提供id，全量的静默规则进行查找
 		for _, sil := range s.st {
 			res = append(res, sil.Silence)
 		}
 	}
 
+	// 进行静默规则检查，如检查不满足则从最终结果里去除
 	var resf []*pb.Silence
 	for _, sil := range res {
 		remove := false
