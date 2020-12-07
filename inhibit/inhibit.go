@@ -43,6 +43,10 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
+// ---------------------------------------------
+// NewInhibitor 返回一个新的 Inhibitor。 其会循环解析配置文件中的抑制规则。
+// 为每个规则生成 InhibitRule 结构体。每个 InhibitRule 结构体里包含source，
+// target，equal等匹配抑制的信息。
 func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
@@ -186,6 +190,8 @@ type InhibitRule struct {
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
+// ---------------------------------------------------------------------------------------
+// NewInhibitRule 基于配置定义来返回一个新的 InhibitRule。
 func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers

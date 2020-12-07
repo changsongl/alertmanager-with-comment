@@ -54,6 +54,8 @@ type Notifier interface {
 
 // Integration wraps a notifier and its configuration to be uniquely identified
 // by name and index from its origin in the configuration.
+// -----------------------------------------------------------------------------
+// Integration 包含一个 Notifier 和其配置，通过name和index来作为唯一命名
 type Integration struct {
 	notifier Notifier
 	rs       ResolvedSender
@@ -267,6 +269,9 @@ func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
 }
 
 // New returns a map of receivers to Stages.
+// --------------------------------------------------------
+// New 返回一个接收人map运行的Stages，每个接收人，都会经历固定的Gossip，
+// 抑制和静默阶段。然后根据receiver的不同，创建各自的分组阶段。
 func (pb *PipelineBuilder) New(
 	receivers map[string][]Integration,
 	wait func() time.Duration,
@@ -281,6 +286,7 @@ func (pb *PipelineBuilder) New(
 	is := NewMuteStage(inhibitor)
 	ss := NewMuteStage(silencer)
 
+	// 根据接收人创建，分组等待，去重，重试，通知阶段
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
 		rs[name] = MultiStage{ms, is, ss, st}

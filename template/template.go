@@ -43,6 +43,8 @@ type Template struct {
 
 // FromGlobs calls ParseGlob on all path globs provided and returns the
 // resulting Template.
+// -----------------------------------------------------------------------
+// 解析所有tmpl文件，加载所有相关模板
 func FromGlobs(paths ...string) (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),

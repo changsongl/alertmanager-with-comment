@@ -145,6 +145,8 @@ const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
+// ----------------------------------------------------------------------------
+// buildReceiverIntegrations 通过接收人配置来创建集成通知列表
 func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
@@ -443,6 +445,8 @@ func run() int {
 		tmpl.ExternalURL = amURL
 
 		// Build the routing tree and record which receivers are used.
+		// ------------------------------------------------------------
+		// 建立路由树和记录下被使用的接收人
 		routes := dispatch.NewRoute(conf.Route, nil)
 		activeReceivers := make(map[string]struct{})
 		routes.Walk(func(r *dispatch.Route) {
@@ -452,12 +456,15 @@ func run() int {
 		// Build the map of receiver to integrations.
 		receivers := make(map[string][]notify.Integration, len(activeReceivers))
 		var integrationsNum int
+		// 循环加载所有配置中的接受消息人
 		for _, rcv := range conf.Receivers {
+			// 查看此接受消息人，没有任何route在使用，则进行记录和丢弃，然后开始下一轮。
 			if _, found := activeReceivers[rcv.Name]; !found {
 				// No need to build a receiver if no route is using it.
 				level.Info(configLogger).Log("msg", "skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
 				continue
 			}
+			// 创建接收人的integration，并插入到receiver map中。
 			integrations, err := buildReceiverIntegrations(rcv, tmpl, logger)
 			if err != nil {
 				return err
@@ -467,10 +474,11 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
+		// 停止抑制器和调度器
 		inhibitor.Stop()
 		disp.Stop()
 
-		// 创建静默，抑制器并放到pipeline里面
+		// 创建静默，抑制器并放到pipeline里面，pipeline包含告警处理的每一个stage。
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
 		pipeline := pipelineBuilder.New(
@@ -484,6 +492,7 @@ func run() int {
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
 
+		// 更新api的抑制和静默数据
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
 			silencer.Mutes(labels)

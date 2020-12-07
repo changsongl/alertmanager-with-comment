@@ -55,6 +55,8 @@ type Route struct {
 }
 
 // NewRoute returns a new route.
+// ------------------------------------
+// 返回新的分组路由树
 func NewRoute(cr *config.Route, parent *Route) *Route {
 	// Create default and overwrite with configured settings.
 	opts := DefaultRouteOpts

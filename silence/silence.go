@@ -102,6 +102,8 @@ type Silencer struct {
 }
 
 // NewSilencer returns a new Silencer.
+// ----------------------------------------
+// NewSilencer 返回一个新的 Silencer 结构体。
 func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 	return &Silencer{
 		silences: s,
