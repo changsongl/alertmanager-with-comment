@@ -426,6 +426,7 @@ func run() int {
 		tmpl      *template.Template
 	)
 
+	// 创建普罗米修斯相关统计指标，创建配置协调者。
 	dispMetrics := dispatch.NewDispatcherMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configLogger := log.With(logger, "component", "configuration")

@@ -218,6 +218,7 @@ type metrics struct {
 	notificationLatencySeconds *prometheus.HistogramVec
 }
 
+// 发送消息的普罗米修斯指标，统计消息数量，消息通知失败数量，消息延迟
 func newMetrics(r prometheus.Registerer) *metrics {
 	m := &metrics{
 		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{

@@ -32,6 +32,8 @@ import (
 )
 
 // Template bundles a text and a html template instance.
+// -------------------------------------------------------
+// 整合文本和html模板
 type Template struct {
 	text *tmpltext.Template
 	html *tmplhtml.Template

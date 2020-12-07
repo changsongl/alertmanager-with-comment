@@ -217,6 +217,8 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 }
 
 // Config is the top-level configuration for Alertmanager's config files.
+// ------------------------------------------------------------------------
+// Config 是顶层的alertmanager配置文件结构体
 type Config struct {
 	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
 	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
@@ -536,6 +538,8 @@ func (hp HostPort) String() string {
 
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
+// -----------------------------------------------------------------------
+// GlobalConfig 定义解决超时时间，http的配置，和各种渠道发送的相关信息
 type GlobalConfig struct {
 	// ResolveTimeout is the time after which an alert is declared resolved
 	// if it has not been updated.
@@ -570,6 +574,9 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
+// ----------------------------------------------------------------------
+// 分组路由，定义分组需要的路由信息，和分组配置时间间隔，如分组等待，重发时间和
+// 分组发送间隔。
 type Route struct {
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 
@@ -638,21 +645,51 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // InhibitRule defines an inhibition rule that mutes alerts that match the
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
+// -------------------------------------------------------------------------
+// InhibitRule 定义抑制规则，当source label告警存在的时候，去静默掉匹配到target
+// label的告警。target告警和source告警必须有一组相同的label。
+// Ex:
+// source match:
+//   level: error
+// target match:
+//   level: info
+// equal:
+//   env
+//
+// alert1<level=info, env=debug>
+// alert2<level=error, env=debug>
+//
+// 在这个配置下，alert2发生后，会抑制alert1。
+//
 type InhibitRule struct {
 	// SourceMatch defines a set of labels that have to equal the given
 	// value for source alerts.
+	// -------------------------------------------------------------------
+	// SourceMatch 定义一组label，只有source告警与这组label相同时才有效
 	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
+
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching.
+	// -------------------------------------------------------------------
+	// SourceMatchRE 和SourceMatch相似，负责正则匹配。
 	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
+
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts.
+	// -------------------------------------------------------------------
+	// TargetMatch 定义一组label，只有告警的label与这组label相同时才有效
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
+
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
 	// matching.
+	// -------------------------------------------------------------------
+	// TargetMatchRE 和TargetMatch相似，负责正则匹配。
 	TargetMatchRE MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
+
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
+	// -------------------------------------------------------------------
+	// Equal是一组定义的label。当source和target告警在这一组的label的值相同时，才会认为匹配成功。
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
 }
 
@@ -679,6 +716,8 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // Receiver configuration provides configuration on how to contact a receiver.
+// ----------------------------------------------------------------------------
+// Receiver 配置提供渠道信息，如果去联系告警接收人
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`

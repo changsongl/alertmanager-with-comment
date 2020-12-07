@@ -43,6 +43,8 @@ type Coordinator struct {
 // NewCoordinator returns a new coordinator with the given configuration file
 // path. It does not yet load the configuration from file. This is done in
 // `Reload()`.
+// ----------------------------------------------------------------------------
+// NewCoordinator 返回一个新的协调者，协调者负责处理配置内容和Reload操作。并且注册普罗米修斯指标。
 func NewCoordinator(configFilePath string, r prometheus.Registerer, l log.Logger) *Coordinator {
 	c := &Coordinator{
 		configFilePath: configFilePath,
@@ -76,6 +78,8 @@ func (c *Coordinator) registerMetrics(r prometheus.Registerer) {
 }
 
 // Subscribe subscribes the given Subscribers to configuration changes.
+// ----------------------------------------------------------------------
+// Subscribe 注册订阅方法
 func (c *Coordinator) Subscribe(ss ...func(*Config) error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
