@@ -164,6 +164,10 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 }
 
 // Load parses the YAML input s into a Config.
+// --------------------------------------------------
+// 加载配置的工具方法，进行检查是否根分组路由是否存在，如不存在则提示错误信息。
+// 并且检查是否跟分组路由有开启continue（continue代表匹配中之后继续匹配其兄弟
+// 分组路由），如果开启则进行报错。根分组路由无兄弟，因而不能continue开启。
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
 	err := yaml.UnmarshalStrict([]byte(s), cfg)
@@ -173,11 +177,15 @@ func Load(s string) (*Config, error) {
 	// Check if we have a root route. We cannot check for it in the
 	// UnmarshalYAML method because it won't be called if the input is empty
 	// (e.g. the config file is empty or only contains whitespace).
+	// ----------------------------------------------------------------------
+	// 默认分组路由不能为空
 	if cfg.Route == nil {
 		return nil, errors.New("no route provided in config")
 	}
 
 	// Check if continue in root route.
+	// ----------------------------------------------------------------------
+	// 默认分组路由不能设置continue为true
 	if cfg.Route.Continue {
 		return nil, errors.New("cannot have continue in root route")
 	}
@@ -187,6 +195,8 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
+// ------------------------------------------------------
+// 从文件名filename的yaml配置文件中，加载出配置。
 func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -220,13 +230,20 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 // ------------------------------------------------------------------------
 // Config 是顶层的alertmanager配置文件结构体
 type Config struct {
+	// 全局配置，如http配置，IM API，web hook等等
 	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	// 分组路由规则
 	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	// 告警抑制规则
 	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	// 接收人规则，接收人的名字和及其具体的通讯方式和细节
 	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	// 模板文件地址，支持使用匹配文件名。如 'templates/*.tmpl'.
 	Templates    []string       `yaml:"templates" json:"templates"`
 
 	// original is the input from which the config was parsed.
+	// ---------------------------------------------------------
+	// 配置文件的文本
 	original string
 }
 
@@ -576,21 +593,42 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // A Route is a node that contains definitions of how to handle alerts.
 // ----------------------------------------------------------------------
 // 分组路由，定义分组需要的路由信息，和分组配置时间间隔，如分组等待，重发时间和
-// 分组发送间隔。
+// 分组发送间隔。分组路由结构体本身为树状结构，根部的路由需为默认路由，假如没有匹配
+// 到子路由，则使用根路由进行分组。子节点的路由，再没有覆盖配置的情况下，会继承父
+// 节点的配置。
+//
+// 在匹配时，如果匹配到非跟节点，则查看是否这个节点有子节点，
+// 1. 如果有则继续匹配子节点。如果匹配到子节点则使用子节点作为匹配路由。如果没有，
+// 则使用之前匹配到的父节点。
+// 2. 如果没有子节点，则直接使用当前节点的路由。
+//
+// 假如匹配为Continue为true到节点时，需继续匹配下一个兄弟节点（假如有的话）。
 type Route struct {
+	// 接收人名称，对应接收人切片。Config.Receivers
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 
+	// 分组字符串切片，从配置文件解析出来的配置。假如分组配置的元素为"..."，则代表根据所有
+	// label来进行分组。GroupBy则为从string转换的LabelName类型。
 	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
 
+	// 匹配规则
+	// Match 具体的Label和label value的匹配，如果全部匹配则命中。
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	// MatchRE 支持正则表达式去匹配。
 	MatchRE  MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	// Continue 匹配中之后，是否在继续匹配其兄弟节点。
 	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
+	// Routes 当前节点的子节点
 	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
+	// 分组等待时间，在同一分组下相同GroupBy labels的告警，需要等待相应分组等待时间去聚合告警。
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
+	// 分组发送间隔时间，在同一分组下相同GroupBy labels的告警，在此分组发送之后，需要等待发送间隔时间才告警
+	// ，此间隔的告警也会被聚合。
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
+	// 重复间隔，当告警匹配到这个分组后，当告警发送过之后，需要等待重复间隔时间，其告警才会被再次发送。
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 }
 
@@ -717,7 +755,8 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Receiver configuration provides configuration on how to contact a receiver.
 // ----------------------------------------------------------------------------
-// Receiver 配置提供渠道信息，如果去联系告警接收人
+// Receiver 配置提供渠道信息，如何去联系告警接收人。支持Email, Pagerduty, Slack, webhook,
+// OpsGenie, Wechat, Pushover, VictorOps等方式。
 type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`

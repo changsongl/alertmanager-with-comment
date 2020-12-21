@@ -66,7 +66,7 @@ import (
 // 就是告警系统本身也是需要被监控和告警的。
 var (
 
-	// http请求耗时的histogram指标。
+	// alertmanager web服务 http请求耗时的histogram指标。
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
@@ -76,8 +76,8 @@ var (
 		[]string{"handler", "method"},
 	)
 
-	// 创建http回复体的大小的histogram指标，这里使用了ExponentialBuckets，去
-	// 提供bucket。给予初始值，增长乘积，和增长次数。来生成float64切片。
+	// alertmanager web服务 http回复体的大小的histogram指标，这里使用了ExponentialBuckets，
+	// 去提供bucket。给予初始值，增长乘积，和增长次数。来生成float64切片。
 	responseSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_response_size_bytes",

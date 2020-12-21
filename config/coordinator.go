@@ -44,7 +44,8 @@ type Coordinator struct {
 // path. It does not yet load the configuration from file. This is done in
 // `Reload()`.
 // ----------------------------------------------------------------------------
-// NewCoordinator 返回一个新的协调者，协调者负责处理配置内容和Reload操作。并且注册普罗米修斯指标。
+// NewCoordinator 返回一个新的协调者，协调者负责处理配置内容和Reload操作。此方法会把协调
+// 者的相关指标，注册到传入的普罗米修斯注册器(默认的prometheus.DefaultRegisterer)。
 func NewCoordinator(configFilePath string, r prometheus.Registerer, l log.Logger) *Coordinator {
 	c := &Coordinator{
 		configFilePath: configFilePath,
@@ -56,6 +57,8 @@ func NewCoordinator(configFilePath string, r prometheus.Registerer, l log.Logger
 	return c
 }
 
+// 此方法注册协调者指标到普罗米修斯Registerer里。configHash指标为当前配置的Hash值，
+// configSuccess标识上次配置reload的结果，configSuccessTime为上次成功reload的时间。
 func (c *Coordinator) registerMetrics(r prometheus.Registerer) {
 	configHash := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
