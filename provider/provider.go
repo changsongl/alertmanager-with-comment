@@ -73,16 +73,33 @@ func (ai alertIterator) Err() error { return ai.err }
 func (ai alertIterator) Close()     { close(ai.done) }
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
+// --------------------------------------------------------------------------
+// Alerts 接口负责装载告警对象，并且可以提供告警的遍历器，而且可以设置或可以通过告警
+// 指纹获得告警。全部的方法，都是协成安全。
 type Alerts interface {
+
 	// Subscribe returns an iterator over active alerts that have not been
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
+	// --------------------------------------------------------------------
+	// Subscribe 方法，返回一个告警遍历器接口。遍历器会返回还没有解决和还没有被成功
+	// 通知出来的告警。遍历器所返回的告警，并不能保证是按照时间顺序来进行排序的。
 	Subscribe() AlertIterator
+
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
+	// --------------------------------------------------------------------
+	// GetPending 方法，返回一个告警遍历器接口。遍历器会返回在等待通知的告警。
 	GetPending() AlertIterator
+
 	// Get returns the alert for a given fingerprint.
+	// --------------------------------------------------------------------
+	// Get 方法，通过告警的Label指纹，来获得Alert对象。Alert对象包含的信息，如
+	// 过期时间，更新时间，标签，告警开始时间等等。
 	Get(model.Fingerprint) (*types.Alert, error)
+
 	// Put adds the given alert to the set.
+	// --------------------------------------------------------------------
+	// Put 方法，把零到多个告警，放入此告警集合里。
 	Put(...*types.Alert) error
 }

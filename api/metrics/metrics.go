@@ -16,6 +16,10 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 // Alerts stores metrics for alerts which are common across all API versions.
+// ----------------------------------------------------------------------------
+// Alerts 结构体来包含告警，解决和无效的普罗米修斯counter指标。
+// Alerts.firing 和 Alerts.resolved 公用同一个指标，通过status标签来区分是firing，
+// 还是resolved，并且提供相应的getter方法。
 type Alerts struct {
 	firing   prometheus.Counter
 	resolved prometheus.Counter
@@ -23,6 +27,9 @@ type Alerts struct {
 }
 
 // NewAlerts returns an *Alerts struct for the given API version.
+// ----------------------------------------------------------------------------
+// NewAlerts 通过版本号来生成 Alerts 指针，里面的所有指标，都带有这个版本作为固定的
+// version 指标。
 func NewAlerts(version string, r prometheus.Registerer) *Alerts {
 	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:        "alertmanager_alerts_received_total",
@@ -44,6 +51,8 @@ func NewAlerts(version string, r prometheus.Registerer) *Alerts {
 	}
 }
 
+// ------------------------------ Getters ------------------------------
+
 // Firing returns a counter of firing alerts.
 func (a *Alerts) Firing() prometheus.Counter { return a.firing }
 
@@ -52,3 +61,5 @@ func (a *Alerts) Resolved() prometheus.Counter { return a.resolved }
 
 // Invalid returns a counter of invalid alerts.
 func (a *Alerts) Invalid() prometheus.Counter { return a.invalid }
+
+// ------------------------------ End Getters ------------------------------

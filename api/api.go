@@ -36,19 +36,28 @@ import (
 )
 
 // API represents all APIs of Alertmanager.
+// -------------------------------------------------
+// API 代表alertmanager全部的Api，并且包含在当前进行中的请求数量，
+// 超过并行上线的请求数量，超时时间，与用来控制请求进行中的信号量。
 type API struct {
-	v1                       *apiv1.API
-	v2                       *apiv2.API
-	requestsInFlight         prometheus.Gauge
-	concurrencyLimitExceeded prometheus.Counter
-	timeout                  time.Duration
-	inFlightSem              chan struct{}
+	v1                       *apiv1.API 		// v1 版本api
+	v2                       *apiv2.API 		// v2 版本api
+	requestsInFlight         prometheus.Gauge	// 进行中的请求数量
+	concurrencyLimitExceeded prometheus.Counter // 超过并行请求上限的数量
+	timeout                  time.Duration		// 超时时间
+	inFlightSem              chan struct{}		// 当前进行中请求的信号量，由chan实现
 }
 
 // Options for the creation of an API object. Alerts, Silences, and StatusFunc
 // are mandatory to set. The zero value for everything else is a safe default.
+// ------------------------------------------------------------------------------
+// Options 是为了创建 API 对象来使用，元素 Alerts, Silences, 和 StatusFunc 是必须要设置的。
+// 其余的元素可以为空。
 type Options struct {
 	// Alerts to be used by the API. Mandatory.
+	// ----------------------------------------------------------------
+	// Alerts 是 API 必须有的元素。里面负责装载告警对象，并且可以提供告警的
+	// 遍历器，而且可以设置或可以通过告警指纹获得告警。
 	Alerts provider.Alerts
 	// Silences to be used by the API. Mandatory.
 	Silences *silence.Silences

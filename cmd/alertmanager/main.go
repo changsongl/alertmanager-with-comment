@@ -545,13 +545,13 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 
+	// 从api中获取Handler mux
 	mux := api.Register(router, *routePrefix)
 
+
+	// 创建server对象并开启服务，开启alertmanager http服务
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
-
-
-	// 开启alertmanager http服务
 	go func() {
 		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {

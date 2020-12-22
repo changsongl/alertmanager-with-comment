@@ -51,6 +51,8 @@ import (
 )
 
 // API represents an Alertmanager API v2
+// ------------------------------------------
+//
 type API struct {
 	peer           *cluster.Peer
 	silences       *silence.Silences
