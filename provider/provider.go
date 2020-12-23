@@ -23,12 +23,18 @@ import (
 
 var (
 	// ErrNotFound is returned if a provider cannot find a requested item.
+	// -------------------------------------------------------------------------
+	// ErrNotFound 当没有找到请求对象时，返回此error。没被引用，WTF????!!!!
 	ErrNotFound = fmt.Errorf("item not found")
 )
 
 // Iterator provides the functions common to all iterators. To be useful, a
 // specific iterator interface (e.g. AlertIterator) has to be implemented that
 // provides a Next method.
+// -----------------------------------------------------------------------------
+// Iterator 是一个interface，提供遍历器的基础方法。为了方便使用，需要去使用一个具体的遍历器
+// 接口去实现具体的功能。Ex: AlertIterator 就是一个告警行为的遍历器，内嵌基础 Iterator 的
+// 通用功能，其提供 Next 方法来使用。这也算是Golang继承的一种方式。
 type Iterator interface {
 	// Err returns the current error. It is not safe to call it concurrently
 	// with other iterator methods or while reading from a channel returned
@@ -40,16 +46,27 @@ type Iterator interface {
 }
 
 // AlertIterator is an Iterator for Alerts.
+// ----------------------------------------------------------
+// AlertIterator 是一个遍历器接头，专门为 Alerts 接口来使用的。
+// 里面包含一个遍历器接口和 Next 方法将返回一个告警channel，当遍历器
+// 已经遍历完成，需要将这个channel关闭。在没有遍历完成也可以进行channel
+// 的关闭，因为只有关闭才会对遍历器使用的资源进行释放。
 type AlertIterator interface {
 	Iterator
 	// Next returns a channel that will be closed once the iterator is
 	// exhausted. It is not necessary to exhaust the iterator but Close must
 	// be called in any case to release resources used by the iterator (even
 	// if the iterator is exhausted).
+	// -----------------------------------------------------------------------
+	// Next 返回一个channel。当遍历器已经遍历完成，需要将这个channel关闭。在没有遍历
+	// 完成也可以进行channel的关闭，因为只有关闭才会对遍历器使用的资源进行释放。
 	Next() <-chan *types.Alert
 }
 
 // NewAlertIterator returns a new AlertIterator based on the generic alertIterator type
+// -----------------------------------------------------------------------------------------
+// NewAlertIterator 返回一个 AlertIterator 接口对象，底层实现类型是通过 alertIterator 来实现。
+// Golang典型的设计思维，实现类接口为私有类，通过实现接口的方式，暴露出公开方法。
 func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
 	return &alertIterator{
 		ch:   ch,
@@ -59,17 +76,23 @@ func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) Ale
 }
 
 // alertIterator implements AlertIterator. So far, this one fits all providers.
+// -----------------------------------------------------------------------------------------
+// alertIterator 实现了 AlertIterator 接口。以现在来说，这个实现满足现在所有providers的需求。
+// 但是假如有新的需求，可以通过创建一个新的实现类，来实现 AlertIterator 接口，来让代码变得通用。
 type alertIterator struct {
-	ch   <-chan *types.Alert
-	done chan struct{}
-	err  error
+	ch   <-chan *types.Alert // ch   元素用来遍历告警的队列。
+	done chan struct{}    	 // done 是用来通知这个遍历器被关闭。
+	err  error				 // err  用来存储是否有错误，当调用完 Next 方法后，需要拿到 err 判断是否有错误。
 }
 
+// Next 方法，获取下一个告警。
 func (ai alertIterator) Next() <-chan *types.Alert {
 	return ai.ch
 }
 
+// Err 方法，返回遍历时的错误。
 func (ai alertIterator) Err() error { return ai.err }
+// Close 关闭 done channel，停止遍历。
 func (ai alertIterator) Close()     { close(ai.done) }
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
