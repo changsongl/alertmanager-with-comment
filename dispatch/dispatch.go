@@ -70,7 +70,7 @@ func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 type Dispatcher struct {
 	route   *Route // 分组的路由，负责告警label的匹配，树状结构
 	alerts  provider.Alerts // 告警集合
-	stage   notify.Stage // TODO: ????，感觉是根据context状态，来决定下个阶段
+	stage   notify.Stage // 包含整个流程的Pipeline，查看接收人，静默，抑制等等流程。
 	metrics *DispatcherMetrics // 普罗米修斯调取器相关指标
 
 	marker  types.Marker // 告警标记对象，标记高级被静默或/和抑制

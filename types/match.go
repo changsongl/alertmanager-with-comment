@@ -23,15 +23,21 @@ import (
 )
 
 // Matcher defines a matching rule for the value of a given label.
+// ----------------------------------------------------------------------
+// Matcher 匹配器包含标签名和标签的值，假如是值是一个正则表达式的话，
+// 会生成一个正则匹配器来进行匹配。
 type Matcher struct {
-	Name    string `json:"name"`
-	Value   string `json:"value"`
-	IsRegex bool   `json:"isRegex"`
+	Name    string `json:"name"` // 标签名
+	Value   string `json:"value"` // 标签值
+	IsRegex bool   `json:"isRegex"` // 是否为正则
 
-	regex *regexp.Regexp
+	regex *regexp.Regexp // 正则匹配器
 }
 
 // Init internals of the Matcher. Must be called before using Match.
+// ----------------------------------------------------------------------
+// Init 匹配器 Matcher 的核心。必须在使用 Match 方法前调用此方法。会检查
+// 是否为正则类型的匹配。如果是的话，通过正则文字，生成正则匹配对象。
 func (m *Matcher) Init() error {
 	if !m.IsRegex {
 		return nil

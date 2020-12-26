@@ -40,20 +40,30 @@ import (
 )
 
 // ErrNotFound is returned if a silence was not found.
+// --------------------------------------------------------
+// ErrNotFound 当告警静默不存在时，会返回此error。
 var ErrNotFound = fmt.Errorf("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
+// --------------------------------------------------------
+// ErrInvalidState 当反序列化告警时，发现告警数据状态有问题时，
+// 返回此error。
 var ErrInvalidState = fmt.Errorf("invalid state")
 
+// utc时间方法，获取现在的时间。
 func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
+// matcherCache 是对内存匹配器，map[静默规则] 匹配器 的封装
 type matcherCache map[*pb.Silence]types.Matchers
 
 // Get retrieves the matchers for a given silence. If it is a missed cache
 // access, it compiles and adds the matchers of the requested silence to the
 // cache.
+// -----------------------------------------------------------------------------
+// Get 获得某个静默规则的匹配器。如果当前内存获取失败，它将进行立即编译并且添加所
+// 请求的匹配器到内存中。
 func (c matcherCache) Get(s *pb.Silence) (types.Matchers, error) {
 	if m, ok := c[s]; ok {
 		return m, nil
@@ -63,12 +73,16 @@ func (c matcherCache) Get(s *pb.Silence) (types.Matchers, error) {
 
 // add compiles a silences' matchers and adds them to the cache.
 // It returns the compiled matchers.
+// -----------------------------------------------------------------------------
+// add 编译静默的匹配器，并且把他们加入到内存当中。它回返回编译好的匹配器。
 func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 	var (
 		ms types.Matchers
 		mt *types.Matcher
 	)
 
+	// 循环Silence对象里面的每一个匹配器，并根据标签名和值来生成。
+	// 并且还会判断值是否为正则。
 	for _, m := range s.Matchers {
 		mt = &types.Matcher{
 			Name:  m.Name,
@@ -80,6 +94,7 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 		case pb.Matcher_REGEXP:
 			mt.IsRegex = true
 		}
+		// 初始化匹配器，非常重要。在调用match方法前必须init。
 		err := mt.Init()
 		if err != nil {
 			return nil, err
@@ -95,15 +110,18 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 
 // Silencer binds together a Marker and a Silences to implement the Muter
 // interface.
+// -----------------------------------------------------------------------------
+// Silencer 绑定一个 Silences 和一个 types.Marker 到一起。 Silences 存放所有的告警
+// 规则，types.Marker 来标记告警是否被静默或同时被抑制。
 type Silencer struct {
-	silences *Silences
-	marker   types.Marker
-	logger   log.Logger
+	silences *Silences // 所有告警规则
+	marker   types.Marker // 标记告警静默抑制的marker
+	logger   log.Logger // 日志
 }
 
 // NewSilencer returns a new Silencer.
 // ----------------------------------------
-// NewSilencer 返回一个新的 Silencer 结构体。
+// NewSilencer 返回一个新的 Silencer 结构体，来处理静默。
 func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 	return &Silencer{
 		silences: s,
@@ -113,7 +131,7 @@ func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 }
 
 // Mutes implements the Muter interface.
-// ----------------------------------------------------
+// -----------------------------------------------------------------------------
 // Silencer 实现 Muter interface。根据label来静默当前告警。
 func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	// 获得当前告警label的指纹，通过指纹获得之前静默的id和
@@ -205,14 +223,18 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 }
 
 // Silences holds a silence state that can be modified, queried, and snapshot.
+// -----------------------------------------------------------------------------
+// Silences 掌握一个静默的状态，可以被修改，查询，和快照。
 type Silences struct {
-	logger    log.Logger
-	metrics   *metrics
-	now       func() time.Time
-	retention time.Duration
+	logger    log.Logger // log 对象
+	metrics   *metrics // 存放告警状态，查询，快照等等的指标
+	now       func() time.Time // 获取现在的时间
+	retention time.Duration // 静默规则保留时间，用来设置静默规则的过期时间之后的保留时间。在静默规则
+	                        // 结束后，将多保留这个规则一些时间。在保留时间过了之后的下一个GC周期，
+	                        // 会对这个静默规则进行内存回收。
 
-	mtx       sync.RWMutex
-	st        state
+	mtx       sync.RWMutex // 对象锁
+	st        state // 用来存所有静默规则的对象。
 	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
 	mc        matcherCache

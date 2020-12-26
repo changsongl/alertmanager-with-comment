@@ -325,6 +325,9 @@ func createReceiverStage(
 type RoutingStage map[string]Stage
 
 // Exec implements the Stage interface.
+// ------------------------------------------------------------------------------
+// RoutingStage 执行方法，从上下文中拿到这个告警的接收人。然后找到对应的 MultiStage,
+// 继续执行 MultiStage 的阶段。
 func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	receiver, ok := ReceiverName(ctx)
 	if !ok {
@@ -340,9 +343,17 @@ func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.
 }
 
 // A MultiStage executes a series of stages sequentially.
+// ------------------------------------------------------------------------------
+// MultiStage 包含一个阶段切片，用来执行这里面的所有阶段。
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
+// ------------------------------------------------------------------------------
+// Exec 循环执行 MultiStage 里面的每一个阶段。MultiStage 主要使用两个场景。
+// 场景一： RoutingStage 的map[receiver name] MultiStage。
+//        里面有集群Gossip阶段，静默Mute阶段，抑制Mute阶段，Receiver阶段。
+// 场景二： FanoutStage 的切片，里面每个元素是一个 MultiStage。
+//        里面有分组等待阶段，去重阶段，重试阶段，设置通知阶段。
 func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var err error
 	for _, s := range ms {
