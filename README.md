@@ -33,7 +33,7 @@ release-0.21
 ├── provider       [√]      #提供告警的监听分发，存储和管理。
 ├── scripts
 ├── silence
-├── store          [×]      #告警具体存储的实现方式，现在都是基于内存。
+├── store          [√]      #告警具体存储的实现方式，现在都是基于内存。
 ├── template
 ├── test
 ├── types
