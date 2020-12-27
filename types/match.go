@@ -111,6 +111,8 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 
 // Matchers provides the Match and Fingerprint methods for a slice of Matchers.
 // Matchers must always be sorted.
+// ------------------------------------------------------------------------------
+// Matchers 是一组 Matcher，并提供匹配和指纹方法。 Matchers 必须总是排序的。
 type Matchers []*Matcher
 
 // NewMatchers returns the given Matchers sorted.

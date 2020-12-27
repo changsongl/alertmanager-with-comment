@@ -236,23 +236,27 @@ type Silences struct {
 	mtx       sync.RWMutex // 对象锁
 	st        state // 用来存所有静默规则的对象。
 	version   int // Increments whenever silences are added.
-	broadcast func([]byte)
-	mc        matcherCache
+	              // 版本号，当增加新的静默规则后会自增
+	broadcast func([]byte) // 广播方法，用于集群下每个节点gossip协议传播方法
+	mc        matcherCache // 存储每个静默规则和其匹配器
 }
 
+// 存放所有静默规则的普罗米修斯指标
 type metrics struct {
-	gcDuration              prometheus.Summary
-	snapshotDuration        prometheus.Summary
-	snapshotSize            prometheus.Gauge
-	queriesTotal            prometheus.Counter
-	queryErrorsTotal        prometheus.Counter
-	queryDuration           prometheus.Histogram
-	silencesActive          prometheus.GaugeFunc
-	silencesPending         prometheus.GaugeFunc
-	silencesExpired         prometheus.GaugeFunc
-	propagatedMessagesTotal prometheus.Counter
+	gcDuration              prometheus.Summary     // 静默规则垃圾回收所花的时间统计
+	snapshotDuration        prometheus.Summary     // 生成静默快照所花的时间统计
+	snapshotSize            prometheus.Gauge       // 快照的尺寸
+	queriesTotal            prometheus.Counter     // 静默规则的查询次数
+	queryErrorsTotal        prometheus.Counter     // 静默规则查询错误次数
+	queryDuration           prometheus.Histogram   // 静默规则查询时间分布
+	silencesActive          prometheus.GaugeFunc   // 存储当前激活的静默数量
+	silencesPending         prometheus.GaugeFunc   // 存储当前即将发生的静默数量
+	silencesExpired         prometheus.GaugeFunc   // 存储当前即将过期的静默数量
+	propagatedMessagesTotal prometheus.Counter     // 存储收到的gossip并继续传给其他节点的数量
 }
 
+// 创建静默状态指标的通用方法， metrics.silencesActive, metrics.silencesPending 和
+// metrics.silencesExpired 都是通过这个方法创建的。
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
 	return prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
@@ -270,6 +274,7 @@ func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.Gaug
 	)
 }
 
+// 创建普罗米修斯指标，并注册到普罗米修斯默认注册器中。返回 metrics 结构体。
 func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
@@ -328,21 +333,32 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 
 // Options exposes configuration options for creating a new Silences object.
 // Its zero value is a safe default.
+// ------------------------------------------------------------------------------
+// Options 暴露一些创建静默时使用的配置可选项，nil 是一个安全的默认项。
 type Options struct {
 	// A snapshot file or reader from which the initial state is loaded.
 	// None or only one of them must be set.
+	// -------------------------------------------------------------------
+	// 一个快照文件或者一个reader，用来加载初始状态。这两个配置，只能全部不配置，
+	// 或者只配置一个。
 	SnapshotFile   string
 	SnapshotReader io.Reader
 
 	// Retention time for newly created Silences. Silences may be
 	// garbage collected after the given duration after they ended.
+	// -------------------------------------------------------------------
+	// Retention 时间为了新创的静默规则。静默只有过静默结束后，再过Retention
+	// 保留时间后才可能被垃圾回收掉。
 	Retention time.Duration
 
 	// A logger used by background processing.
+	// -------------------------------------------------------------------
+	// 日志对象和普罗米修斯指标注册器对象
 	Logger  log.Logger
 	Metrics prometheus.Registerer
 }
 
+// 检查是否文件和reader都同事配置了，只能全不配置，或者只配置一个。
 func (o *Options) validate() error {
 	if o.SnapshotFile != "" && o.SnapshotReader != nil {
 		return fmt.Errorf("only one of SnapshotFile and SnapshotReader must be set")
@@ -351,7 +367,10 @@ func (o *Options) validate() error {
 }
 
 // New returns a new Silences object with the given configuration.
+// ------------------------------------------------------------------------------
+// New 根据配置返回一个新的 Silences 对象，
 func New(o Options) (*Silences, error) {
+	// 检验配置项，并查看是否有需要生成快照文件句柄
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
@@ -364,6 +383,8 @@ func New(o Options) (*Silences, error) {
 			o.SnapshotReader = r
 		}
 	}
+
+	// 生成 Silences 对象
 	s := &Silences{
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
@@ -377,6 +398,7 @@ func New(o Options) (*Silences, error) {
 	if o.Logger != nil {
 		s.logger = o.Logger
 	}
+	// 查看是否需要加载快照
 	if o.SnapshotReader != nil {
 		if err := s.loadSnapshot(o.SnapshotReader); err != nil {
 			return s, err
@@ -388,10 +410,14 @@ func New(o Options) (*Silences, error) {
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.
+// ------------------------------------------------------------------------------
+// Maintenance 是周期性的垃圾回收静默。如果快照文件已经设置，快照会在垃圾回收后写到里面。
+// 这个方法会在收到stopc消息之后终止。
 func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 
+	// 垃圾回收方法，和生成快照的逻辑方法
 	f := func() error {
 		start := s.now()
 		var size int64
@@ -418,6 +444,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		return f.Close()
 	}
 
+	// 循环定期垃圾回收，同时监听终止channel
 Loop:
 	for {
 		select {
@@ -429,7 +456,10 @@ Loop:
 			}
 		}
 	}
+
 	// No need for final maintenance if we don't want to snapshot.
+	// ------------------------------------------------------------
+	// 检查是否有必要退出前，在保存一下快照。
 	if snapf == "" {
 		return
 	}
@@ -440,7 +470,10 @@ Loop:
 
 // GC runs a garbage collection that removes silences that have ended longer
 // than the configured retention time ago.
+// ------------------------------------------------------------------------------
+// GC 运行删除静默规则的垃圾回收方法，垃圾回收会删除到期并且已经过了保留时间的静默。
 func (s *Silences) GC() (int, error) {
+	// 垃圾回收时间统计
 	start := time.Now()
 	defer func() { s.metrics.gcDuration.Observe(time.Since(start).Seconds()) }()
 
@@ -450,6 +483,7 @@ func (s *Silences) GC() (int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	// 循环每一个静默规则，删除所有过期的静默规则
 	for id, sil := range s.st {
 		if sil.ExpiresAt.IsZero() {
 			return n, errors.New("unexpected zero expiration timestamp")
@@ -464,6 +498,7 @@ func (s *Silences) GC() (int, error) {
 	return n, nil
 }
 
+// 检查Matcher的数据是否合法。
 func validateMatcher(m *pb.Matcher) error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid label name %q", m.Name)
@@ -483,6 +518,7 @@ func validateMatcher(m *pb.Matcher) error {
 	return nil
 }
 
+// 检查匹配器是否为空。
 func matchesEmpty(m *pb.Matcher) bool {
 	switch m.Type {
 	case pb.Matcher_EQUAL:
@@ -495,6 +531,8 @@ func matchesEmpty(m *pb.Matcher) bool {
 	}
 }
 
+// 检查匹配器方法，如是否有匹配条件，匹配器是否合法（如正则是否合法），是否匹配器为空。
+// 静默规则的时间是否合法，如开始结束时间是否为空，是否结束时间比开始时间早等等。
 func validateSilence(s *pb.Silence) error {
 	if s.Id == "" {
 		return errors.New("ID missing")
@@ -528,11 +566,14 @@ func validateSilence(s *pb.Silence) error {
 }
 
 // cloneSilence returns a shallow copy of a silence.
+// ------------------------------------------------------------------------------
+// cloneSilence 克隆静默规则的方法
 func cloneSilence(sil *pb.Silence) *pb.Silence {
 	s := *sil
 	return &s
 }
 
+// 根据静默Id获得静默规则
 func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	msil, ok := s.st[id]
 	if !ok {
@@ -541,9 +582,11 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
+// 设置静默规则核心方法。会检验静默规则是否合法，广播给其他节点。
 func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
 	sil.UpdatedAt = now
 
+	// 检验静默是否合法
 	if err := validateSilence(sil); err != nil {
 		return errors.Wrap(err, "silence invalid")
 	}
@@ -552,6 +595,8 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
 		Silence:   sil,
 		ExpiresAt: sil.EndsAt.Add(s.retention),
 	}
+
+	// 序列化静默，并广播给其他节点。静默规则版本号+1
 	b, err := marshalMeshSilence(msil)
 	if err != nil {
 		return err
@@ -567,16 +612,21 @@ func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
 
 // Set the specified silence. If a silence with the ID already exists and the modification
 // modifies history, the old silence gets expired and a new one is created.
+// ------------------------------------------------------------------------------
+// Set 是用来设置的静默的公开方法。如果静默的ID已经存在，如果旧的静默已经过期了，将会创建一个新的。
 func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	// 查看以前静默是否存在
 	now := s.now()
 	prev, ok := s.getSilence(sil.Id)
 
 	if sil.Id != "" && !ok {
 		return "", ErrNotFound
 	}
+	// 存在的话就检查是否可以更新，如果不能更新的话。如果没有过期的话，
+	// 则让它过期。
 	if ok {
 		if canUpdate(prev, sil, now) {
 			return sil.Id, s.setSilence(sil, now)
@@ -588,9 +638,13 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 			}
 		}
 	}
+
 	// If we got here it's either a new silence or a replacing one.
+	// ---------------------------------------------------------------
+	// 如果逻辑跑到这里，则代表是一个新的静默，或者是要进行替换。
 	sil.Id = uuid.NewV4().String()
 
+	// 如果开始时间比现在早，则使用现在的时间作为开始时间
 	if sil.StartsAt.Before(now) {
 		sil.StartsAt = now
 	}
@@ -600,24 +654,29 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 
 // canUpdate returns true if silence a can be updated to b without
 // affecting the historic view of silencing.
+// ------------------------------------------------------------------------------
+// canUpdate 如果a（之前的）静默可以在不影响静默历史的情况下去更新b（新的）静默，则返回true。
 func canUpdate(a, b *pb.Silence, now time.Time) bool {
+	// 查看是否两个匹配器是否深度相等，则不能跟新。
 	if !reflect.DeepEqual(a.Matchers, b.Matchers) {
 		return false
 	}
+
 	// Allowed timestamp modifications depend on the current time.
+	// 检查静默a（之前的）的状态
 	switch st := getState(a, now); st {
-	case types.SilenceStateActive:
-		if !b.StartsAt.Equal(a.StartsAt) {
+	case types.SilenceStateActive: // a（之前的）静默已经激活了
+		if !b.StartsAt.Equal(a.StartsAt) { // a（之前的）和b（新的）的开始时间不相等，则不能更新
 			return false
 		}
-		if b.EndsAt.Before(now) {
+		if b.EndsAt.Before(now) { // 如果b（新的）的结束时间比现在早，也不能更新
 			return false
 		}
-	case types.SilenceStatePending:
-		if b.StartsAt.Before(now) {
+	case types.SilenceStatePending: // a（之前的）静默状态是即将发生状态
+		if b.StartsAt.Before(now) { // b（新的）静默在比现在早的话，也不能更新
 			return false
 		}
-	case types.SilenceStateExpired:
+	case types.SilenceStateExpired: // 如果a（之前的）静默已经过期，则也不能更新
 		return false
 	default:
 		panic("unknown silence state")
@@ -626,6 +685,8 @@ func canUpdate(a, b *pb.Silence, now time.Time) bool {
 }
 
 // Expire the silence with the given ID immediately.
+// -----------------------------------------------------
+// Expire 公开方法，根据id过期某个静默
 func (s *Silences) Expire(id string) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -633,14 +694,22 @@ func (s *Silences) Expire(id string) error {
 }
 
 // Expire the silence with the given ID immediately.
+// -----------------------------------------------------
+// expire 私有核心方法，根据不同的静默状态，来决定不同处理方式。
+// 修改克隆的静默，并修改状态，并覆盖掉。
 func (s *Silences) expire(id string) error {
 	sil, ok := s.getSilence(id)
 	if !ok {
 		return ErrNotFound
 	}
+
+	// 克隆获取的静默
 	sil = cloneSilence(sil)
 	now := s.now()
 
+	// 如果已经过期，则返回错误。
+	// 如果静默已经开启，则设置结束时间为现在
+	// 如果还未开始，则开始和结束时间都是现在
 	switch getState(sil, now) {
 	case types.SilenceStateExpired:
 		return errors.Errorf("silence %s already expired", id)
@@ -652,12 +721,16 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
+	// 覆盖静默
 	return s.setSilence(sil, now)
 }
 
 // QueryParam expresses parameters along which silences are queried.
+// ----------------------------------------------------------------------------
+// QueryParam 查询方法封装类，它会操作query对象。
 type QueryParam func(*query) error
 
+// 查询结构体，包含id和过滤方法的切片
 type query struct {
 	ids     []string
 	filters []silenceFilter
@@ -665,9 +738,14 @@ type query struct {
 
 // silenceFilter is a function that returns true if a silence
 // should be dropped from a result set for a given time.
+// ----------------------------------------------------------------------------
+// silenceFilter 是这个方法是专门用来过滤静默的。这个方法是返回bool来根据某个时间决定
+// 是否需要丢弃这个静默。
 type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 
 // QIDs configures a query to select the given silence IDs.
+// ----------------------------------------------------------------------------
+// QIDs 通过ids返回一个QueryParam方法，会把id追加到 query 对象的 ids 里面。
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		q.ids = append(q.ids, ids...)
@@ -676,6 +754,8 @@ func QIDs(ids ...string) QueryParam {
 }
 
 // QMatches returns silences that match the given label set.
+// ----------------------------------------------------------------------------
+// QMatches 根据标签返回一个QueryParam方法，根据标签过滤的方法。
 func QMatches(set model.LabelSet) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, s *Silences, _ time.Time) (bool, error) {
@@ -691,6 +771,9 @@ func QMatches(set model.LabelSet) QueryParam {
 }
 
 // getState returns a silence's SilenceState at the given timestamp.
+// ------------------------------------------------------------------------------
+// getState 返回静默规则的状态。如果静默还没开始，则是pending状态，
+// 如果已经过了结束时间，则是过期状态。如果正在发生中，则是激活状态。
 func getState(sil *pb.Silence, ts time.Time) types.SilenceState {
 	if ts.Before(sil.StartsAt) {
 		return types.SilenceStatePending
@@ -702,6 +785,8 @@ func getState(sil *pb.Silence, ts time.Time) types.SilenceState {
 }
 
 // QState filters queried silences by the given states.
+// ----------------------------------------------------------------------------
+// QState 根据提供的状态返回一个QueryParam方法，根据静默状态过滤的方法。
 func QState(states ...types.SilenceState) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, _ *Silences, now time.Time) (bool, error) {
@@ -721,6 +806,9 @@ func QState(states ...types.SilenceState) QueryParam {
 
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
+// ----------------------------------------------------------------------------
+// QueryOne 根据所有QueryParam，来进行查询。假如没有查到，则返回 ErrNotFound ，
+// 如果有查到，则使用第一个静默。
 func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 	res, _, err := s.Query(params...)
 	if err != nil {
@@ -759,6 +847,8 @@ func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
 }
 
 // Version of the silence state.
+// ------------------------------------------------------
+// Version 返回静默版本号
 func (s *Silences) Version() int {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -766,6 +856,8 @@ func (s *Silences) Version() int {
 }
 
 // CountState counts silences by state.
+// ------------------------------------------------------
+// CountState 根据状态来数多少静默
 func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	// This could probably be optimized.
 	sils, _, err := s.Query(QState(states...))
@@ -822,6 +914,9 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 
 // loadSnapshot loads a snapshot generated by Snapshot() into the state.
 // Any previous state is wiped.
+// ------------------------------------------------------------------------
+// loadSnapshot 加载通过 Snapshot() 产生的快照到 Silences.st (state) 里面。
+// 以前的 state 都会被抹除。并且版本号+1
 func (s *Silences) loadSnapshot(r io.Reader) error {
 	st, err := decodeState(r)
 	if err != nil {
@@ -846,6 +941,8 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 
 // Snapshot writes the full internal state into the writer and returns the number of bytes
 // written.
+// -----------------------------------------------------------------------------------------
+// Snapshot 把内存里的静默状态写到io.writer里，并且返回已经写了多少个bytes。
 func (s *Silences) Snapshot(w io.Writer) (int64, error) {
 	start := time.Now()
 	defer func() { s.metrics.snapshotDuration.Observe(time.Since(start).Seconds()) }()
@@ -853,6 +950,7 @@ func (s *Silences) Snapshot(w io.Writer) (int64, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
+	// 压缩内容为二进制
 	b, err := s.st.MarshalBinary()
 	if err != nil {
 		return 0, err
@@ -862,6 +960,8 @@ func (s *Silences) Snapshot(w io.Writer) (int64, error) {
 }
 
 // MarshalBinary serializes all silences.
+// ------------------------------------------------------------------
+// MarshalBinary 序列化所有的静默，返回序列化之后的内容
 func (s *Silences) MarshalBinary() ([]byte, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -870,7 +970,10 @@ func (s *Silences) MarshalBinary() ([]byte, error) {
 }
 
 // Merge merges silence state received from the cluster with the local state.
+// ------------------------------------------------------------------------------------
+// Merge 从集群获得的静默状态合并到本地的静默状态
 func (s *Silences) Merge(b []byte) error {
+	// 解析出所有静默状态
 	st, err := decodeState(bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -880,6 +983,9 @@ func (s *Silences) Merge(b []byte) error {
 
 	now := s.now()
 
+	// 循环每个静默状态，如果合并成功，版本号加一。
+	// 如果消息已经超长了，则不进行广播，否则进行广播，
+	// 并统计+1。
 	for _, e := range st {
 		if merged := s.st.merge(e, now); merged {
 			s.version++
@@ -899,14 +1005,19 @@ func (s *Silences) Merge(b []byte) error {
 
 // SetBroadcast sets the provided function as the one creating data to be
 // broadcast.
+// ------------------------------------------------------------------------------------
+// SetBroadcast 设置广播的方法。
 func (s *Silences) SetBroadcast(f func([]byte)) {
 	s.mtx.Lock()
 	s.broadcast = f
 	s.mtx.Unlock()
 }
 
+// 存储所有静默规则的map，map[静默id]静默状态
 type state map[string]*pb.MeshSilence
 
+// 合并静默规则，如果静默规则已经过期，则不合并。之前静默不存在，
+// 或者之前静默的更新时间要比这个静默早，则替换掉之前的告警。
 func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
 	id := e.Silence.Id
 	if e.ExpiresAt.Before(now) {
@@ -928,6 +1039,7 @@ func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
 	return false
 }
 
+// 将当前状态，进行序列化为二进制
 func (s state) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -939,6 +1051,7 @@ func (s state) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 反序列化，从二进制转为 state 对象
 func decodeState(r io.Reader) (state, error) {
 	st := state{}
 	for {
@@ -959,6 +1072,7 @@ func decodeState(r io.Reader) (state, error) {
 	return st, nil
 }
 
+// 序列化静默规则
 func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
 	var buf bytes.Buffer
 	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
@@ -968,11 +1082,15 @@ func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
 }
 
 // replaceFile wraps a file that is moved to another filename on closing.
+// ------------------------------------------------------------------------------------
+// replaceFile 包了一个文件对象，还有一个要替换的文件名。
 type replaceFile struct {
 	*os.File
 	filename string
 }
 
+// 关闭替换文件，把未写完的内容刷到文件里，然后关闭文件。最后替换掉
+// replaceFile.filename 的文件。
 func (f *replaceFile) Close() error {
 	if err := f.File.Sync(); err != nil {
 		return err
@@ -984,6 +1102,9 @@ func (f *replaceFile) Close() error {
 }
 
 // openReplace opens a new temporary file that is moved to filename on closing.
+// ------------------------------------------------------------------------------------
+// openReplace 打开一个 filename 和 一个随机数的文件。并回返 replaceFile 对象。
+// 当关闭的时候，将这个随机数文件，重命名到 filename 文件。
 func openReplace(filename string) (*replaceFile, error) {
 	tmpFilename := fmt.Sprintf("%s.%x", filename, uint64(rand.Int63()))
 
