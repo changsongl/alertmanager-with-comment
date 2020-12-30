@@ -35,10 +35,10 @@ var (
 // gcInterval. An optional callback can be set which receives a slice of all
 // resolved alerts that have been removed.
 // -----------------------------------------------------------------------------
-// Alerts 是一个存储告警的map，提供锁来进行同步和协调。map的key为告警的职位。已经被解决
+// Alerts 是一个存储告警的map，提供锁来进行同步和协调。map的key为告警的指纹。已经被解决
 // 的告警将被从map里面移除，移除的频率取决于gcInterval配置。其可以设置一个可选的回调函数，
 // 方法签名为func([]*types.Alert)。当gc发生时，会移除已经解决的告警，并把这些告警作为参数
-// 传给回调函数，来继续拓展行为。
+// 传给回调函数，来继续其他的处理。
 type Alerts struct {
 	sync.Mutex // 结构体锁
 	c  map[model.Fingerprint]*types.Alert // 存储告警的map
@@ -71,7 +71,7 @@ func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 
 // Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
 // -----------------------------------------------------------------------------------------
-// 设置定时器，每次触发，对已解决告警进行垃圾回收和GC回调。
+// 设置并开启定时器，每次触发，对已解决告警进行垃圾回收和GC回调。
 func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -117,7 +117,7 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Set unconditionally sets the alert in memory.
 // ---------------------------------------------------------------------------
-// Set 没有任何条件的设置告警到内存当中。
+// Set 没有任何条件限制，直接设置告警到内存当中。
 func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()

@@ -347,8 +347,8 @@ type Options struct {
 	// Retention time for newly created Silences. Silences may be
 	// garbage collected after the given duration after they ended.
 	// -------------------------------------------------------------------
-	// Retention 时间为了新创的静默规则。静默只有过静默结束后，再过Retention
-	// 保留时间后才可能被垃圾回收掉。
+	// Retention 时间是给新创建的静默规则来使用的，配置静默规则的保留时间。
+	// 静默规则只有过了结束时间后，并且过了保留时间后才可以被垃圾回收掉。
 	Retention time.Duration
 
 	// A logger used by background processing.

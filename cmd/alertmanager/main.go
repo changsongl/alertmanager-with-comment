@@ -211,11 +211,11 @@ func run() int {
 	var (
 		// 配置文件目录
 		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
-		// 数据保存的目录
+		// 数据保存的目录，如静默规则的快照。
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
-		// 数据保存的时间长度
+		// retention 是静默规则的保留时间。静默规则只有过了结束时间后，并且过了保留时间后才可以被垃圾回收掉。
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
-		// golang垃圾回收间隔设置
+		// 告警的垃圾回收频率，会定期对内存里已经解决的告警，进行垃圾回收，释放内存。
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		// TODO: 好奇为什么需要这个外部url？
