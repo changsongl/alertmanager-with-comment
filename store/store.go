@@ -40,9 +40,9 @@ var (
 // 方法签名为func([]*types.Alert)。当gc发生时，会移除已经解决的告警，并把这些告警作为参数
 // 传给回调函数，来继续其他的处理。
 type Alerts struct {
-	sync.Mutex // 结构体锁
-	c  map[model.Fingerprint]*types.Alert // 存储告警的map
-	cb func([]*types.Alert) // gc掉已解决的告警后的回调函数
+	sync.Mutex                                    // 结构体锁
+	c          map[model.Fingerprint]*types.Alert // 存储告警的map
+	cb         func([]*types.Alert)               // gc掉已解决的告警后的回调函数
 }
 
 // NewAlerts returns a new Alerts struct.

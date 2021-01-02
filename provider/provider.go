@@ -81,8 +81,8 @@ func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) Ale
 // 但是假如有新的需求，可以通过创建一个新的实现类，来实现 AlertIterator 接口，来让代码变得通用。
 type alertIterator struct {
 	ch   <-chan *types.Alert // ch   元素用来遍历告警的队列。
-	done chan struct{}    	 // done 是用来通知这个遍历器被关闭。
-	err  error				 // err  用来存储是否有错误，当调用完 Next 方法后，需要拿到 err 判断是否有错误。
+	done chan struct{}       // done 是用来通知这个遍历器被关闭。
+	err  error               // err  用来存储是否有错误，当调用完 Next 方法后，需要拿到 err 判断是否有错误。
 }
 
 // Next 方法，获取下一个告警。
@@ -92,8 +92,9 @@ func (ai alertIterator) Next() <-chan *types.Alert {
 
 // Err 方法，返回遍历时的错误。
 func (ai alertIterator) Err() error { return ai.err }
+
 // Close 关闭 done channel，停止遍历。
-func (ai alertIterator) Close()     { close(ai.done) }
+func (ai alertIterator) Close() { close(ai.done) }
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 // --------------------------------------------------------------------------

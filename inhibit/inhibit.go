@@ -32,18 +32,21 @@ import (
 // An Inhibitor determines whether a given label set is muted based on the
 // currently active alerts and a set of inhibition rules. It implements the
 // Muter interface.
+// ---------------------------------------------------------------------------
+// Inhibitor 是根据配置的抑制规则，来检查告警的标签是否被现在激活的告警被静音掉。它已经
+// 实现了Muter接口。
 type Inhibitor struct {
-	alerts provider.Alerts
-	rules  []*InhibitRule
-	marker types.Marker
-	logger log.Logger
+	alerts provider.Alerts // 告警对象，用来获得告警和遍历器
+	rules  []*InhibitRule  // 静默规则切片，里面包含抑制规则的匹配器
+	marker types.Marker    // 告警的标记器，负责标记告警状态，如告警，静默，抑制等等
+	logger log.Logger      // log对象
 
-	mtx    sync.RWMutex
-	cancel func()
+	mtx    sync.RWMutex // 锁
+	cancel func()       // 取消抑制规则的方法，当其他流程出问题的时候，会调用此方法通知抑制器
 }
 
 // NewInhibitor returns a new Inhibitor.
-// ---------------------------------------------
+// ---------------------------------------------------------------------------
 // NewInhibitor 返回一个新的 Inhibitor。 其会循环解析配置文件中的抑制规则。
 // 为每个规则生成 InhibitRule 结构体。每个 InhibitRule 结构体里包含source，
 // target，equal等匹配抑制的信息。
@@ -53,6 +56,8 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker,
 		marker: mk,
 		logger: logger,
 	}
+
+	// 循环每个抑制规则，创建InhibitRule
 	for _, cr := range rs {
 		r := NewInhibitRule(cr)
 		ih.rules = append(ih.rules, r)

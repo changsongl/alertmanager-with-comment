@@ -210,23 +210,23 @@ func run() int {
 	// 所有的用户传参，也可以通过--help指令或者help参数来查看英文的指示描述。
 	var (
 		// 配置文件目录
-		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configFile = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
 		// 数据保存的目录，如静默规则的快照。
-		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
+		dataDir = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		// retention 是静默规则的保留时间。静默规则只有过了结束时间后，并且过了保留时间后才可以被垃圾回收掉。
-		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
+		retention = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		// 告警的垃圾回收频率，会定期对内存里已经解决的告警，进行垃圾回收，释放内存。
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
 		// TODO: 好奇为什么需要这个外部url？
-		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
-		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		externalURL = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		// alertmanager监听的地址和端口，默认监听0.0.0.0:9093
-		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 		// 设置最大get http请求并发数量，通常设置为系统逻辑核数
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		// alertmanager本身的http服务的，请求超时时间。如为0，则无超时时间
-		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
+		httpTimeout = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
 		// 设置监听集群的地址，可以设置为空字符串去禁止集群
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
@@ -547,7 +547,6 @@ func run() int {
 
 	// 从api中获取Handler mux
 	mux := api.Register(router, *routePrefix)
-
 
 	// 创建server对象并开启服务，开启alertmanager http服务
 	srv := http.Server{Addr: *listenAddress, Handler: mux}

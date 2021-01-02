@@ -27,8 +27,8 @@ import (
 // Matcher 匹配器包含标签名和标签的值，假如是值是一个正则表达式的话，
 // 会生成一个正则匹配器来进行匹配。
 type Matcher struct {
-	Name    string `json:"name"` // 标签名
-	Value   string `json:"value"` // 标签值
+	Name    string `json:"name"`    // 标签名
+	Value   string `json:"value"`   // 标签值
 	IsRegex bool   `json:"isRegex"` // 是否为正则
 
 	regex *regexp.Regexp // 正则匹配器

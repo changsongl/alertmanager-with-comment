@@ -114,9 +114,9 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 // Silencer 绑定一个 Silences 和一个 types.Marker 到一起。 Silences 存放所有的告警
 // 规则，types.Marker 来标记告警是否被静默或同时被抑制。
 type Silencer struct {
-	silences *Silences // 所有告警规则
+	silences *Silences    // 所有告警规则
 	marker   types.Marker // 标记告警静默抑制的marker
-	logger   log.Logger // 日志
+	logger   log.Logger   // 日志
 }
 
 // NewSilencer returns a new Silencer.
@@ -226,33 +226,33 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 // -----------------------------------------------------------------------------
 // Silences 掌握一个静默的状态，可以被修改，查询，和快照。
 type Silences struct {
-	logger    log.Logger // log 对象
-	metrics   *metrics // 存放告警状态，查询，快照等等的指标
+	logger    log.Logger       // log 对象
+	metrics   *metrics         // 存放告警状态，查询，快照等等的指标
 	now       func() time.Time // 获取现在的时间
-	retention time.Duration // 静默规则保留时间，用来设置静默规则的过期时间之后的保留时间。在静默规则
-	                        // 结束后，将多保留这个规则一些时间。在保留时间过了之后的下一个GC周期，
-	                        // 会对这个静默规则进行内存回收。
+	retention time.Duration    // 静默规则保留时间，用来设置静默规则的过期时间之后的保留时间。在静默规则
+	// 结束后，将多保留这个规则一些时间。在保留时间过了之后的下一个GC周期，
+	// 会对这个静默规则进行内存回收。
 
-	mtx       sync.RWMutex // 对象锁
-	st        state // 用来存所有静默规则的对象。
-	version   int // Increments whenever silences are added.
-	              // 版本号，当增加新的静默规则后会自增
+	mtx     sync.RWMutex // 对象锁
+	st      state        // 用来存所有静默规则的对象。
+	version int          // Increments whenever silences are added.
+	// 版本号，当增加新的静默规则后会自增
 	broadcast func([]byte) // 广播方法，用于集群下每个节点gossip协议传播方法
 	mc        matcherCache // 存储每个静默规则和其匹配器
 }
 
 // 存放所有静默规则的普罗米修斯指标
 type metrics struct {
-	gcDuration              prometheus.Summary     // 静默规则垃圾回收所花的时间统计
-	snapshotDuration        prometheus.Summary     // 生成静默快照所花的时间统计
-	snapshotSize            prometheus.Gauge       // 快照的尺寸
-	queriesTotal            prometheus.Counter     // 静默规则的查询次数
-	queryErrorsTotal        prometheus.Counter     // 静默规则查询错误次数
-	queryDuration           prometheus.Histogram   // 静默规则查询时间分布
-	silencesActive          prometheus.GaugeFunc   // 存储当前激活的静默数量
-	silencesPending         prometheus.GaugeFunc   // 存储当前即将发生的静默数量
-	silencesExpired         prometheus.GaugeFunc   // 存储当前即将过期的静默数量
-	propagatedMessagesTotal prometheus.Counter     // 存储收到的gossip并继续传给其他节点的数量
+	gcDuration              prometheus.Summary   // 静默规则垃圾回收所花的时间统计
+	snapshotDuration        prometheus.Summary   // 生成静默快照所花的时间统计
+	snapshotSize            prometheus.Gauge     // 快照的尺寸
+	queriesTotal            prometheus.Counter   // 静默规则的查询次数
+	queryErrorsTotal        prometheus.Counter   // 静默规则查询错误次数
+	queryDuration           prometheus.Histogram // 静默规则查询时间分布
+	silencesActive          prometheus.GaugeFunc // 存储当前激活的静默数量
+	silencesPending         prometheus.GaugeFunc // 存储当前即将发生的静默数量
+	silencesExpired         prometheus.GaugeFunc // 存储当前即将过期的静默数量
+	propagatedMessagesTotal prometheus.Counter   // 存储收到的gossip并继续传给其他节点的数量
 }
 
 // 创建静默状态指标的通用方法， metrics.silencesActive, metrics.silencesPending 和

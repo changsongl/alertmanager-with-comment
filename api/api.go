@@ -40,12 +40,12 @@ import (
 // API 代表alertmanager全部的Api，并且包含在当前进行中的请求数量，
 // 超过并行上线的请求数量，超时时间，与用来控制请求进行中的信号量。
 type API struct {
-	v1                       *apiv1.API 		// v1 版本api
-	v2                       *apiv2.API 		// v2 版本api
-	requestsInFlight         prometheus.Gauge	// 进行中的请求数量
+	v1                       *apiv1.API         // v1 版本api
+	v2                       *apiv2.API         // v2 版本api
+	requestsInFlight         prometheus.Gauge   // 进行中的请求数量
 	concurrencyLimitExceeded prometheus.Counter // 超过并行请求上限的数量
-	timeout                  time.Duration		// 超时时间
-	inFlightSem              chan struct{}		// 当前进行中请求的信号量，由chan实现
+	timeout                  time.Duration      // 超时时间
+	inFlightSem              chan struct{}      // 当前进行中请求的信号量，由chan实现
 }
 
 // Options for the creation of an API object. Alerts, Silences, and StatusFunc

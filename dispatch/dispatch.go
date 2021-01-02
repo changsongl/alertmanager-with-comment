@@ -68,16 +68,16 @@ func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 // --------------------------------------------------------------
 // 调度器对象，调度整个告警处理的核心流程。
 type Dispatcher struct {
-	route   *Route // 分组的路由，负责告警label的匹配，树状结构
-	alerts  provider.Alerts // 告警集合
-	stage   notify.Stage // 包含整个流程的Pipeline，查看接收人，静默，抑制等等流程。
+	route   *Route             // 分组的路由，负责告警label的匹配，树状结构
+	alerts  provider.Alerts    // 告警集合
+	stage   notify.Stage       // 包含整个流程的Pipeline，查看接收人，静默，抑制等等流程。
 	metrics *DispatcherMetrics // 普罗米修斯调取器相关指标
 
-	marker  types.Marker // 告警标记对象，标记高级被静默或/和抑制
+	marker  types.Marker                      // 告警标记对象，标记高级被静默或/和抑制
 	timeout func(time.Duration) time.Duration // TODO: ????, 自定义的timeout方法？
 
 	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup // 分组列表map，所以分组都会在这里存放
-	mtx        sync.RWMutex // 读写锁，用来操作分组map时使用
+	mtx        sync.RWMutex                                // 读写锁，用来操作分组map时使用
 
 	// 关闭的通道，上下文和方法
 	done   chan struct{}
@@ -296,7 +296,6 @@ func (d *Dispatcher) Stop() {
 // with the given fingerprint. It aborts on context cancelation.
 // Returns false iff notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
-
 
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.

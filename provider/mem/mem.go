@@ -11,7 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // 这个包为什么要叫mem，而不是叫alerts或者alert-provider之类的？这是因为
 // mem包是alertmanager的内存实现告警存储的一种实现。通过实现provider接口的内存实现，
 // 来完成整个告警的存储功能。假如alertmanager官方想要更改存储实现，或者说提供更多的，
@@ -32,7 +31,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-
 // 告警channel的size值
 const alertChannelLength = 200
 
@@ -41,16 +39,16 @@ const alertChannelLength = 200
 // Alerts 是具体 provider.Alerts 的实现类。可以通过它来使用一组告警。全部的方法都是
 // 协成安全的。
 type Alerts struct {
-	cancel context.CancelFunc		  // cancel Context的cancel方法。负责cancel Alerts.Run() 的协成。
+	cancel context.CancelFunc // cancel Context的cancel方法。负责cancel Alerts.Run() 的协成。
 
-	mtx       sync.Mutex			  // mtx 锁，确保 Alerts 的线程安全。
-	alerts    *store.Alerts			  // alerts 是具体的存储告警的结构体，以内存map[fingerprint]alert来存储。
-									  // 里面负责存储告警，并且负责进行已经解决的告警的垃圾回收。
+	mtx    sync.Mutex    // mtx 锁，确保 Alerts 的线程安全。
+	alerts *store.Alerts // alerts 是具体的存储告警的结构体，以内存map[fingerprint]alert来存储。
+	// 里面负责存储告警，并且负责进行已经解决的告警的垃圾回收。
 
 	listeners map[int]listeningAlerts // listeners 管理和监听现在未解决的告警。
-	next      int					  // next 配合 listeners 使用，获取下一个放到 listeners map的counter。
+	next      int                     // next 配合 listeners 使用，获取下一个放到 listeners map的counter。
 
-	logger log.Logger				  // logger 打印log呗。
+	logger log.Logger // logger 打印log呗。
 }
 
 // listeningAlerts TODO: 待更新

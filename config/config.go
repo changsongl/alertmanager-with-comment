@@ -231,15 +231,15 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 // Config 是顶层的alertmanager配置文件结构体
 type Config struct {
 	// 全局配置，如http配置，IM API，web hook等等
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Global *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
 	// 分组路由规则
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	Route *Route `yaml:"route,omitempty" json:"route,omitempty"`
 	// 告警抑制规则
 	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
 	// 接收人规则，接收人的名字和及其具体的通讯方式和细节
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Receivers []*Receiver `yaml:"receivers,omitempty" json:"receivers,omitempty"`
 	// 模板文件地址，支持使用匹配文件名。如 'templates/*.tmpl'.
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Templates []string `yaml:"templates" json:"templates"`
 
 	// original is the input from which the config was parsed.
 	// ---------------------------------------------------------
@@ -615,19 +615,19 @@ type Route struct {
 
 	// 匹配规则
 	// Match 具体的Label和label value的匹配，如果全部匹配则命中。
-	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	// MatchRE 支持正则表达式去匹配。
-	MatchRE  MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	MatchRE MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
 	// Continue 匹配中之后，是否在继续匹配其兄弟节点。
-	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
+	Continue bool `yaml:"continue,omitempty" json:"continue,omitempty"`
 	// Routes 当前节点的子节点
-	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Routes []*Route `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	// 分组等待时间，在同一分组下相同GroupBy labels的告警，需要等待相应分组等待时间去聚合告警。
-	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
+	GroupWait *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	// 分组发送间隔时间，在同一分组下相同GroupBy labels的告警，在此分组发送之后，需要等待发送间隔时间才告警
 	// ，此间隔的告警也会被聚合。
-	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
+	GroupInterval *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	// 重复间隔，当告警匹配到这个分组后，当告警发送过之后，需要等待重复间隔时间，其告警才会被再次发送。
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 }
