@@ -26,7 +26,7 @@ release-0.21
 ├── doc
 ├── docs
 ├── examples
-├── inhibit
+├── inhibit        [√]      #提供抑制规则的检查和匹配。
 ├── nflog
 ├── notify
 ├── pkg
