@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# 发送给多个alertmanager的shell脚本，展示HA的效果，只有一个alertmanager会发送出消息。
+# alertmanager是通过多个实例，然后实例间互相通信来进行HA的。
 alerts1='[
   {
     "labels": {

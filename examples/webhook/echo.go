@@ -21,6 +21,7 @@ import (
 	"net/http"
 )
 
+// 配置里面receiver配置的服务
 func main() {
 	log.Fatal(http.ListenAndServe(":5001", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := ioutil.ReadAll(r.Body)

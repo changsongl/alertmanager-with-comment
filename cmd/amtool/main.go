@@ -15,6 +15,7 @@ package main
 
 import "github.com/prometheus/alertmanager/cli"
 
+// alertmanager cli 入口
 func main() {
 	cli.Execute()
 }

@@ -50,6 +50,7 @@ func (m *Matcher) Init() error {
 	return nil
 }
 
+// String 方法
 func (m *Matcher) String() string {
 	if m.IsRegex {
 		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
@@ -57,7 +58,10 @@ func (m *Matcher) String() string {
 	return fmt.Sprintf("%s=%q", m.Name, m.Value)
 }
 
-// Validate returns true iff all fields of the matcher have valid values.
+// Validate returns true if all fields of the matcher have valid values.
+// ------------------------------------------------------------------------------
+// Validate 返回true当全部的字段都是正常的。如标签名是否合法，如果值是正则的话，
+// 检查正则是否可以编译成功。如果非正则，检查值的是否为空，或者是否包含非法字符。
 func (m *Matcher) Validate() error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid name %q", m.Name)
@@ -74,10 +78,14 @@ func (m *Matcher) Validate() error {
 
 // Match checks whether the label of the matcher has the specified
 // matching value.
+// ------------------------------------------------------------------------------
+// Match 方法检查检查某个告警的全部标签是否满足这个匹配器的规则，满足则true，反之false。
 func (m *Matcher) Match(lset model.LabelSet) bool {
 	// Unset labels are treated as unset labels globally. Thus, if a
 	// label is not set we retrieve the empty label which is correct
 	// for the comparison below.
+	// ----------------------------------------------------------------
+	// 当标签是没设置的话，以下的匹配逻辑也是正常的。
 	v := lset[model.LabelName(m.Name)]
 
 	if m.IsRegex {
@@ -88,6 +96,9 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 
 // NewMatcher returns a new matcher that compares against equality of
 // the given value.
+// ------------------------------------------------------------------------------
+// NewMatcher 根据提供的标签名和匹配值，生成匹配器对象。非正则的话使用此
+// 方法生成Matcher。
 func NewMatcher(name model.LabelName, value string) *Matcher {
 	return &Matcher{
 		Name:    string(name),
@@ -100,6 +111,8 @@ func NewMatcher(name model.LabelName, value string) *Matcher {
 // a regular expression. The matcher is already initialized.
 //
 // TODO(fabxc): refactor usage.
+// ------------------------------------------------------------------------------
+// NewRegexMatcher 返回一个正则的Matcher。根据正则表达对象，来生成匹配器。
 func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 	return &Matcher{
 		Name:    string(name),
@@ -116,12 +129,16 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 type Matchers []*Matcher
 
 // NewMatchers returns the given Matchers sorted.
+// ----------------------------------------------------
+// NewMatchers 根据多个Matcher成Machers对象，并根据每个
+// Matcher的名字进行排序。实现了sort.Sort接口。
 func NewMatchers(ms ...*Matcher) Matchers {
 	m := Matchers(ms)
 	sort.Sort(m)
 	return m
 }
 
+//----------------------- sort.Sort 接口方法 -----------------------
 func (ms Matchers) Len() int      { return len(ms) }
 func (ms Matchers) Swap(i, j int) { ms[i], ms[j] = ms[j], ms[i] }
 
@@ -141,7 +158,11 @@ func (ms Matchers) Less(i, j int) bool {
 	return !ms[i].IsRegex && ms[j].IsRegex
 }
 
+//----------------------- sort.Sort 接口方法 end -----------------------
+
 // Match checks whether all matchers are fulfilled against the given label set.
+// ------------------------------------------------------------------------------
+// Match 方法循环匹配Matchers里的每一个匹配器，然后匹配这个告警的标签是否全部匹配成功。
 func (ms Matchers) Match(lset model.LabelSet) bool {
 	for _, m := range ms {
 		if !m.Match(lset) {
@@ -151,6 +172,7 @@ func (ms Matchers) Match(lset model.LabelSet) bool {
 	return true
 }
 
+// String 方法
 func (ms Matchers) String() string {
 	var buf bytes.Buffer
 

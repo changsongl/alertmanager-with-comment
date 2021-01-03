@@ -11,7 +11,9 @@ release-0.21
 ### 目录结构
 >[√] 代表已经完成备注。
 >
->[×] 代表还未全部完成备注
+>[×] 代表还未全部完成备注。
+>
+>[-] 代表无需备注，自行阅读。
 
 ````
 
@@ -20,25 +22,25 @@ release-0.21
 ├── cli
 ├── client
 ├── cluster
-├── cmd
+├── cmd            [√]      #程序入口
 ├── config
 ├── dispatch
 ├── doc
-├── docs
-├── examples
+├── docs           [-]      #Alertmanager文档描述，包含整个架构，配置文档等等。
+├── examples       [√]      #展示Alertmanager HA 的例子，里面包含多个am的配置和发告警脚本，和receiver服务。
 ├── inhibit        [√]      #提供抑制规则的检查和匹配。
 ├── nflog
 ├── notify
 ├── pkg
 ├── provider       [√]      #提供告警的监听分发，存储和管理。
-├── scripts
+├── scripts        [-]      #protobuf脚本。
 ├── silence        [√]      #提供静默的核心储存和匹配，会将静默状态写到文件里，和同步给其他集群的节点等等。
 ├── store          [√]      #告警具体存储的实现方式，现在都是基于内存。
 ├── template
-├── test
+├── test           [-]      #测试Alertmanager的代码。
 ├── types
-├── ui
-└── vendor         [×]      #golang vendor目录。
+├── ui             [√]      #Alertmanager UI页面。
+└── vendor         [-]      #golang vendor目录。
 
 ````
 

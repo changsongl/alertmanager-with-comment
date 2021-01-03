@@ -1,19 +1,22 @@
 global:
-  resolve_timeout: 5m
+  resolve_timeout: 5m # 长时间没收到告警的最新状态5分钟后，则会认为已经恢复。
 
-route:
-  group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'web.hook'
-receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
-inhibit_rules:
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
-    equal: ['alertname', 'dev', 'instance']
+route: # 告警路由
+  group_by: ['alertname'] # 路由分组根据的标签
+  group_wait: 10s # 分组等待时间，等待时间。
+  group_interval: 10s # 分组消息发送后，分组再次发送的重复间隔。
+  repeat_interval: 1h # 告警发送完之后，再次发送的重复间隔。
+  receiver: 'web.hook' #此路由的告警的接收人。
+receivers: # 接收人配置
+- name: 'web.hook' # 接收人名称
+  webhook_configs: # 接收人类型 webhook
+  - url: 'http://127.0.0.1:5001/' # web hook url
+inhibit_rules: # 告警抑制规则，在两个告警eqaul标签相等时，源告警规则匹配的告警，会抑制目标规则匹配的告警。
+  - source_match: # 源告警匹配
+      severity: 'critical' # severity标签值为critical
+    target_match: # 目标告警匹配
+      severity: 'warning' # severity标签值为warning
+    equal: ['alertname', 'dev', 'instance'] # equal标签，只有当两个标签的equal标签相等时，抑制规则才可生效。
+    # 这里假如之前已经有label1{severity: 'critical', alertname: "abc", dev: "yes", "instance": 127.0.0.1}
+    # 在告警，现在来了一个label2{severity: 'warning', alertname: "abc", dev: "yes", "instance": 127.0.0.1}
+    # 那么label2会被label1给抑制掉。
