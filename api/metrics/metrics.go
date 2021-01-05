@@ -54,12 +54,19 @@ func NewAlerts(version string, r prometheus.Registerer) *Alerts {
 // ------------------------------ Getters ------------------------------
 
 // Firing returns a counter of firing alerts.
+// ------------------------------------------------------------
+// Firing 返回告警的普罗米修斯counter
 func (a *Alerts) Firing() prometheus.Counter { return a.firing }
 
 // Resolved returns a counter of resolved alerts.
+// ------------------------------------------------------------
+// Resolved 返回已解决的的普罗米修斯counter
 func (a *Alerts) Resolved() prometheus.Counter { return a.resolved }
 
 // Invalid returns a counter of invalid alerts.
+// ------------------------------------------------------------
+// Invalid 返回无效的的的普罗米修斯counter，无效指的是，告警开始时间，
+// 标签，等等数据不合法，则会认为是无效告警。
 func (a *Alerts) Invalid() prometheus.Counter { return a.invalid }
 
 // ------------------------------ End Getters ------------------------------
