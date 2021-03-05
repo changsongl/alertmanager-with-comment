@@ -17,21 +17,21 @@ release-0.21
 
 ````
 
-├── api
-├── asset
-├── cli
-├── client
-├── cluster
-├── cmd            [√]      #程序入口
-├── config
-├── dispatch
-├── doc
+├── api            [x]      #Alertmanager接口逻辑。
+├── asset          [x]      #生成Alertmanager静态文件。
+├── cli            [x]      #Alertmanager的cli逻辑。
+├── client         [x]      #Alertmanager客户端。
+├── cluster        [x]      #集群逻辑。
+├── cmd            [√]      #程序入口。
+├── config         [x]      #配置目录，进行配置文件加载和解析。
+├── dispatch       [x]      #程序主线，进行告警/恢复事件调度。
+├── doc            [-]      #文档和架构图。
 ├── docs           [-]      #Alertmanager文档描述，包含整个架构，配置文档等等。
 ├── examples       [√]      #展示Alertmanager HA 的例子，里面包含多个am的配置和发告警脚本，和receiver服务。
 ├── inhibit        [√]      #提供抑制规则的检查和匹配。
 ├── nflog
-├── notify
-├── pkg
+├── notify         [x]      #通知包，里面包含通知抽象类，和各个实现类如webhook，微信等等。
+├── pkg            [x]      #公共包，labels和modtimevfs。
 ├── provider       [√]      #提供告警的监听分发，存储和管理。
 ├── scripts        [-]      #protobuf脚本。
 ├── silence        [√]      #提供静默的核心储存和匹配，会将静默状态写到文件里，和同步给其他集群的节点等等。
