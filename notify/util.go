@@ -155,17 +155,29 @@ func readAll(r io.Reader) string {
 // Retrier knows when to retry an HTTP request to a receiver. 2xx status codes
 // are successful, anything else is a failure and only 5xx status codes should
 // be retried.
+// ----------------------------------------------------------------------------
+// Retrier 知道什么时候去重试一个Http请求。2xx的状态码是成功的，其他的所有状态码
+// 是代表失败，并且5xx状态码是代表可以重试。
 type Retrier struct {
 	// Function to return additional information in the error message.
+	// ----------------------------------------------------------------------------
+	// 方法会返回错误信息里的更多信息
 	CustomDetailsFunc func(code int, body io.Reader) string
 	// Additional HTTP status codes that should be retried.
+	// ----------------------------------------------------------------------------
+	// 用来存储其他的一些需要进行重试的http状态码。
 	RetryCodes []int
 }
 
 // Check returns a boolean indicating whether the request should be retried
 // and an optional error if the request has failed. If body is not nil, it will
 // be included in the error message.
+// ----------------------------------------------------------------------------
+// Check 返回一个bool来代表是否请求需要被重试，并且一个可选的错误当请求已经失败了。
+// 如果回复的body不为nil，则将把body放到错误信息里。
 func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
+	// 进行运算，查看是否是成功，或者5xx重试。
+
 	// 2xx responses are considered to be always successful.
 	if statusCode/100 == 2 {
 		return false, nil
@@ -173,6 +185,7 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 
 	// 5xx responses are considered to be always retried.
 	retry := statusCode/100 == 5
+	// 不是5xx的话，将循环额外的RetryCodes，假如匹配到则表示retry=true
 	if !retry {
 		for _, code := range r.RetryCodes {
 			if code == statusCode {
@@ -182,6 +195,7 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		}
 	}
 
+	// 打包错误信息
 	s := fmt.Sprintf("unexpected status code %v", statusCode)
 	var details string
 	if r.CustomDetailsFunc != nil {

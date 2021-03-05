@@ -33,7 +33,7 @@ import (
 
 // Template bundles a text and a html template instance.
 // -------------------------------------------------------
-// 整合文本和html模板
+// Template 整合文本和html模板
 type Template struct {
 	text *tmpltext.Template
 	html *tmplhtml.Template
@@ -44,7 +44,7 @@ type Template struct {
 // FromGlobs calls ParseGlob on all path globs provided and returns the
 // resulting Template.
 // -----------------------------------------------------------------------
-// 解析所有tmpl文件，加载所有相关模板
+// FromGlobs 调用ParseGlob来获得全部的模板，加载所有相关模板
 func FromGlobs(paths ...string) (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),
@@ -91,6 +91,8 @@ func FromGlobs(paths ...string) (*Template, error) {
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
+// -----------------------------------------------------------------------
+// ExecuteTextString 把TEXT模板里的占位符全部替换成data，并把替换后的文本进行返回。
 func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
 	if text == "" {
 		return "", nil
@@ -109,6 +111,8 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 }
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
+// -----------------------------------------------------------------------
+// ExecuteHTMLString 把HTML模板里的占位符全部替换成data，并把替换后的文本进行返回。
 func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
 	if html == "" {
 		return "", nil
@@ -126,6 +130,7 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 	return buf.String(), err
 }
 
+// FuncMap 模板的方法Map
 type FuncMap map[string]interface{}
 
 var DefaultFuncs = FuncMap{
@@ -151,14 +156,20 @@ var DefaultFuncs = FuncMap{
 }
 
 // Pair is a key/value string pair.
+// -----------------------------------------------------------------------
+// Pair 是一个key/value对象，应用于label。方便用键进行排序。
 type Pair struct {
 	Name, Value string
 }
 
 // Pairs is a list of key/value string pairs.
+// -----------------------------------------------------------------------
+// Pairs 是一组kv，labels。
 type Pairs []Pair
 
 // Names returns a list of names of the pairs.
+// -----------------------------------------------------------------------
+// Names 返回所有的键
 func (ps Pairs) Names() []string {
 	ns := make([]string, 0, len(ps))
 	for _, p := range ps {
@@ -168,6 +179,8 @@ func (ps Pairs) Names() []string {
 }
 
 // Values returns a list of values of the pairs.
+// -----------------------------------------------------------------------
+// Values 返回所有的值
 func (ps Pairs) Values() []string {
 	vs := make([]string, 0, len(ps))
 	for _, p := range ps {
@@ -177,9 +190,13 @@ func (ps Pairs) Values() []string {
 }
 
 // KV is a set of key/value string pairs.
+// -----------------------------------------------------------------------
+// KV 是一组key/value字符串对
 type KV map[string]string
 
 // SortedPairs returns a sorted list of key/value pairs.
+// -----------------------------------------------------------------------
+// SortedPairs 返回一组根据键排序好的键值对
 func (kv KV) SortedPairs() Pairs {
 	var (
 		pairs     = make([]Pair, 0, len(kv))
@@ -203,6 +220,8 @@ func (kv KV) SortedPairs() Pairs {
 }
 
 // Remove returns a copy of the key/value set without the given keys.
+// -----------------------------------------------------------------------
+// Remove 返回一个KV副本，并且删除相应的keys。
 func (kv KV) Remove(keys []string) KV {
 	keySet := make(map[string]struct{}, len(keys))
 	for _, k := range keys {
@@ -219,11 +238,15 @@ func (kv KV) Remove(keys []string) KV {
 }
 
 // Names returns the names of the label names in the LabelSet.
+// -----------------------------------------------------------------------
+// Names 返回在一组标签集合里的所有标签名
 func (kv KV) Names() []string {
 	return kv.SortedPairs().Names()
 }
 
 // Values returns a list of the values in the LabelSet.
+// -----------------------------------------------------------------------
+// Names 返回在一组标签集合里的所有标签的值
 func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
 }
@@ -232,33 +255,41 @@ func (kv KV) Values() []string {
 //
 // End-users should not be exposed to Go's type system, as this will confuse them and prevent
 // simple things like simple equality checks to fail. Map everything to float64/string.
+// -----------------------------------------------------------------------
+// Data 是被传参传入到通知告警模板和webhook推送里的数据。
 type Data struct {
-	Receiver string `json:"receiver"`
-	Status   string `json:"status"`
-	Alerts   Alerts `json:"alerts"`
+	Receiver string `json:"receiver"` // 接收人
+	Status   string `json:"status"`   // 状态
+	Alerts   Alerts `json:"alerts"`   // 告警对象
 
-	GroupLabels       KV `json:"groupLabels"`
-	CommonLabels      KV `json:"commonLabels"`
-	CommonAnnotations KV `json:"commonAnnotations"`
+	GroupLabels       KV `json:"groupLabels"`       // 标签
+	CommonLabels      KV `json:"commonLabels"`      // 通用标签
+	CommonAnnotations KV `json:"commonAnnotations"` // 通用注解
 
-	ExternalURL string `json:"externalURL"`
+	ExternalURL string `json:"externalURL"` // 外部URL
 }
 
 // Alert holds one alert for notification templates.
+// -----------------------------------------------------------------------
+// Alert 保存告警模板的一个告警信息
 type Alert struct {
-	Status       string    `json:"status"`
-	Labels       KV        `json:"labels"`
-	Annotations  KV        `json:"annotations"`
-	StartsAt     time.Time `json:"startsAt"`
-	EndsAt       time.Time `json:"endsAt"`
-	GeneratorURL string    `json:"generatorURL"`
-	Fingerprint  string    `json:"fingerprint"`
+	Status       string    `json:"status"`       // 告警状态
+	Labels       KV        `json:"labels"`       // 告警标签
+	Annotations  KV        `json:"annotations"`  // 注解
+	StartsAt     time.Time `json:"startsAt"`     // 开始时间
+	EndsAt       time.Time `json:"endsAt"`       // 结束时间
+	GeneratorURL string    `json:"generatorURL"` // URL
+	Fingerprint  string    `json:"fingerprint"`  // 告警指纹
 }
 
 // Alerts is a list of Alert objects.
+// -----------------------------------------------------------------------
+// Alerts 是一组 Alert 对象
 type Alerts []Alert
 
 // Firing returns the subset of alerts that are firing.
+// -----------------------------------------------------------------------
+// Firing 返回这个告警组里的正在告警子集
 func (as Alerts) Firing() []Alert {
 	res := []Alert{}
 	for _, a := range as {
@@ -270,6 +301,8 @@ func (as Alerts) Firing() []Alert {
 }
 
 // Resolved returns the subset of alerts that are resolved.
+// -----------------------------------------------------------------------
+// Firing 返回这个告警组里的已经解决的告警子集
 func (as Alerts) Resolved() []Alert {
 	res := []Alert{}
 	for _, a := range as {
@@ -281,6 +314,8 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
+// -----------------------------------------------------------------------
+// Data 组装好 data 对象，为生成模板而是用。
 func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
 	data := &Data{
 		Receiver:          regexp.QuoteMeta(recv),

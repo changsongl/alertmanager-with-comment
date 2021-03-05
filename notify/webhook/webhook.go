@@ -32,19 +32,25 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// userAgentHeader 带版本号的客户端头部
 var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // Notifier implements a Notifier for generic webhooks.
+// ----------------------------------------------------------------------------
+// Notifier 是通用webhook类, 实现 notify.Notifier 接口
 type Notifier struct {
-	conf    *config.WebhookConfig
-	tmpl    *template.Template
+	conf    *config.WebhookConfig // webhook配置
+	tmpl    *template.Template    // 模板对象(golang)
 	logger  log.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
 // New returns a new Webhook.
+// ----------------------------------------------------------------------------
+// New 返回一个webhook
 func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notifier, error) {
+	// 创建一个Http Client
 	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", false)
 	if err != nil {
 		return nil, err
@@ -56,6 +62,9 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		client: client,
 		// Webhooks are assumed to respond with 2xx response codes on a successful
 		// request and 5xx response codes are assumed to be recoverable.
+		// ----------------------------------------------------------------------------
+		// Webhook重试器，默认认为2xx的回复状态码代表成功，5xx的恢复状态码代表失败，并且
+		// 认为可以被恢复并重试。
 		retrier: &notify.Retrier{
 			CustomDetailsFunc: func(int, io.Reader) string {
 				return conf.URL.String()

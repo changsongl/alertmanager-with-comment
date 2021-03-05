@@ -48,6 +48,9 @@ const MinTimeout = 10 * time.Second
 // Notifier notifies about alerts under constraints of the given context. It
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
+// -----------------------------------------------------------------------------
+// Notifier 接口，在限定的上下文下进行通知告警。当通知失败时将返回错误，并且有一个
+// flag用来判断是否这个错误是可以恢复的。这个信息对于重试非常有效。
 type Notifier interface {
 	Notify(context.Context, ...*types.Alert) (bool, error)
 }
@@ -64,6 +67,8 @@ type Integration struct {
 }
 
 // NewIntegration returns a new integration.
+// -----------------------------------------------------------------------------
+// NewIntegration 创建integration对象。
 func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) Integration {
 	return Integration{
 		notifier: notifier,

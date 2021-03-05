@@ -149,9 +149,19 @@ const defaultClusterAddr = "0.0.0.0:9094"
 // buildReceiverIntegrations 通过接收人配置来创建集成通知列表
 func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
 	var (
-		errs         types.MultiError
+		// 多错误收集器，方便用来收集超过1个错误的场景
+		errs types.MultiError
+		// 接收列表
 		integrations []notify.Integration
-		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
+
+		// add 用来添加接收信息到列表和收集错误到多错误收集器的方法。
+		// @name 为接收的方式名: 如 webhook, email等
+		// @i    为接收方式的序号。如 0,1,2...
+		// @rs   notify.ResolvedSender 接口，实现类为所有接收方式的配置结构体。
+		// @f    为传入一个logger对象，并返回一个notify.Notifier对象。
+		add = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
+			// 通过f方法创建一个notify.Notifier对象，并创建integration存储到integrations里。
+			// 假如有错误则添加到多错误收集器里。
 			n, err := f(log.With(logger, "integration", name))
 			if err != nil {
 				errs.Add(err)
@@ -161,6 +171,7 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		}
 	)
 
+	// 循环创建不同类型的Integrations
 	for i, c := range nc.WebhookConfigs {
 		add("webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l) })
 	}
