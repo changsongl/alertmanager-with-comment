@@ -29,7 +29,7 @@ release-0.21
 ├── docs           [-]      #Alertmanager文档描述，包含整个架构，配置文档等等。
 ├── examples       [√]      #展示Alertmanager HA 的例子，里面包含多个am的配置和发告警脚本，和receiver服务。
 ├── inhibit        [√]      #提供抑制规则的检查和匹配。
-├── nflog
+├── nflog          [x]     
 ├── notify         [x]      #通知包，里面包含通知抽象类，和各个实现类如webhook，微信等等。
 ├── pkg            [x]      #公共包，labels和modtimevfs。
 ├── provider       [√]      #提供告警的监听分发，存储和管理。
