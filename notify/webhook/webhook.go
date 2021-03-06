@@ -74,15 +74,21 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 }
 
 // Message defines the JSON object send to webhook endpoints.
+// ----------------------------------------------------------------------------
+// Message 定义了发给Webhook服务器的对象。
 type Message struct {
-	*template.Data
+	*template.Data // 告警的元数据
 
 	// The protocol version.
-	Version         string `json:"version"`
-	GroupKey        string `json:"groupKey"`
+	// 告警版本
+	Version string `json:"version"`
+	// 分组Key
+	GroupKey string `json:"groupKey"`
+	// 截取掉的告警数量，假如告警数量过多，会截取超过上限的那部分告警。
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
 }
 
+// truncateAlerts 解决掉超过 maxAlerts 数量的告警，并把截取后的告警切片和截取掉的数量返回。
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
 	if maxAlerts != 0 && uint64(len(alerts)) > maxAlerts {
 		return alerts[:maxAlerts], uint64(len(alerts)) - maxAlerts
@@ -92,7 +98,11 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 }
 
 // Notify implements the Notifier interface.
+// ----------------------------------------------------------------------------
+// Notify 实现了 Notifier 接口。准备要发送的告警数据，序列化数据后进行发送。
+// 发送完成后，查看结果是否需要进行重试。
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	// 截取告警，并从元数据里提取出data, 获取group key。
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
@@ -101,6 +111,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		level.Error(n.logger).Log("err", err)
 	}
 
+	// 打包Message, 并序列化
 	msg := &Message{
 		Version:         "4",
 		Data:            data,
@@ -113,6 +124,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
+	// 准备http请求, 并调用。
 	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
 	if err != nil {
 		return true, err
@@ -126,5 +138,6 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 	notify.Drain(resp)
 
+	// 检查是否需要重试
 	return n.retrier.Check(resp.StatusCode, nil)
 }
