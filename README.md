@@ -18,12 +18,12 @@ release-0.21
 ````
 
 ├── api            [x]      #Alertmanager接口逻辑。
-├── asset          [x]      #生成Alertmanager静态文件。
-├── cli            [x]      #Alertmanager的cli逻辑。
+├── asset          [-]      #生成Alertmanager静态文件。
+├── cli            [-]      #Alertmanager的cli逻辑。
 ├── client         [x]      #Alertmanager客户端。
 ├── cluster        [x]      #集群逻辑。
 ├── cmd            [√]      #程序入口。
-├── config         [x]      #配置目录，进行配置文件加载和解析。
+├── config         [-]      #配置目录，进行配置文件加载和解析。
 ├── dispatch       [√]      #程序调度器。
 ├── doc            [-]      #文档和架构图。
 ├── docs           [-]      #Alertmanager文档描述，包含整个架构，配置文档等等。
@@ -34,7 +34,7 @@ release-0.21
                             #消息静默，抑制，去重，发送日志等等，都是一个阶段。所有的逻辑都被以阶段的形式来表示。
                             #这里重点查看notify.go文件。其他的都是些工具方法和接收人的发送的逻辑（如微信，Slack等等），
                             #无需特别关注。里面包含通知抽象类，和各个实现类如webhook，微信等等。
-├── pkg            [x]      #公共包，labels和modtimevfs。
+├── pkg            [-]      #公共包，labels和modtimevfs。
 ├── provider       [√]      #提供告警的监听分发，存储和管理。
 ├── scripts        [-]      #protobuf脚本。
 ├── silence        [√]      #提供静默的核心储存和匹配，会将静默状态写到文件里，和同步给其他集群的节点等等。
