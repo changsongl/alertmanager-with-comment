@@ -5,6 +5,9 @@
 为了留下相应的知识沉淀和可以方便的回顾和把内容分享给大家，因此创建此项目来进行代码备注，希望大家能够喜欢。
 如果这个项目帮助到了你，请star这个项目，谢谢！
 
+### 专栏讲解
+https://segmentfault.com/blog/alertmanager
+
 ### 版本
 release-0.21
 
@@ -20,7 +23,7 @@ release-0.21
 ├── api            [x]      #Alertmanager接口逻辑。
 ├── asset          [-]      #生成Alertmanager静态文件。
 ├── cli            [-]      #Alertmanager的cli逻辑。
-├── client         [x]      #Alertmanager客户端。
+├── client         [-]      #Alertmanager客户端。
 ├── cluster        [x]      #集群逻辑。
 ├── cmd            [√]      #程序入口。
 ├── config         [-]      #配置目录，进行配置文件加载和解析。
