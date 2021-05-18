@@ -24,7 +24,7 @@ release-0.21
 ├── cluster        [x]      #集群逻辑。
 ├── cmd            [√]      #程序入口。
 ├── config         [x]      #配置目录，进行配置文件加载和解析。
-├── dispatch       [x]      #程序调度器。
+├── dispatch       [√]      #程序调度器。
 ├── doc            [-]      #文档和架构图。
 ├── docs           [-]      #Alertmanager文档描述，包含整个架构，配置文档等等。
 ├── examples       [√]      #展示Alertmanager HA 的例子，里面包含多个am的配置和发告警脚本，和receiver服务。

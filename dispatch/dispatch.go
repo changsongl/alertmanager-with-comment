@@ -193,12 +193,15 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 }
 
 // AlertGroup represents how alerts exist within an aggrGroup.
+// ------------------------------------------------------------------
+// AlertGroup 表示告警是在 aggrGroup 告警聚合组里的详情。
 type AlertGroup struct {
-	Alerts   types.AlertSlice
-	Labels   model.LabelSet
-	Receiver string
+	Alerts   types.AlertSlice // 告警分组里的当前告警
+	Labels   model.LabelSet   // 告警分组里的匹配标签
+	Receiver string           // 告警分组的接收人
 }
 
+// AlertGroup 告警分组的的切片，以及排序方式（根据告警分组的匹配标签来进行排序）。
 type AlertGroups []*AlertGroup
 
 func (ag AlertGroups) Swap(i, j int) { ag[i], ag[j] = ag[j], ag[i] }
@@ -211,7 +214,11 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
+// -----------------------------------------------------------------------------
+// Groups 接受 routeFilter 路由过滤 和 alertFilter 告警过滤的两个方法，然后通过这两个
+// 方法对现有的告警分组里和内容进行过滤，并最终返回过滤掉的告警分组和所有的告警接收人。
 func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+	// 创建告警分组，并锁住调度器
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
@@ -220,21 +227,28 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	// Keep a list of receivers for an alert to prevent checking each alert
 	// again against all routes. The alert has already matched against this
 	// route on ingestion.
+	// -----------------------------------------------------------------------------
+	// 保存每个告警的接收人列表，去避免将来需要检查所有的路由进行匹配。
 	receivers := map[model.Fingerprint][]string{}
 
 	now := time.Now()
+	// 循环每个告警聚合组
 	for route, ags := range d.aggrGroups {
+		// 分组路由没有被过滤，则继续检查下一个
 		if !routeFilter(route) {
 			continue
 		}
 
+		// 循环每个聚合组，拿到具体的具体的分组
 		for _, ag := range ags {
+			// 获得分组的接收人和分组labels
 			receiver := route.RouteOpts.Receiver
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
 				Receiver: receiver,
 			}
 
+			// 获取每个告警列表，并循环检查是否告警已经被filter方法过滤了。
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*types.Alert, 0, len(alerts))
 			for _, a := range alerts {
@@ -242,6 +256,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 					continue
 				}
 
+				// 如果已被过滤掉，则添加接收人
 				fp := a.Fingerprint()
 				if r, ok := receivers[fp]; ok {
 					// Receivers slice already exists. Add
@@ -255,14 +270,20 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 
 				filteredAlerts = append(filteredAlerts, a)
 			}
+
+			// 如果已经过滤掉的告警数为0，则忽略。
 			if len(filteredAlerts) == 0 {
 				continue
 			}
+
+			// 添加这个告警组到返回的告警组切片中
 			alertGroup.Alerts = filteredAlerts
 
 			groups = append(groups, alertGroup)
 		}
 	}
+
+	// 进行排序和返回
 	sort.Sort(groups)
 	for i := range groups {
 		sort.Sort(groups[i].Alerts)
@@ -304,8 +325,8 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 // @param alert 告警结构体
 // @param route 已经匹配上的分组路由
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
-	// 根据分组路由的信息，获得此分组下的所有label。
-	// 并根据所得label得到唯一id(finger print)。
+	// 根据分组路由的信息，获得此分组下的匹配中的labels。
+	// 并根据所得labels得到唯一id(指纹 finger print)。
 	groupLabels := getGroupLabels(alert, route)
 	fp := groupLabels.Fingerprint()
 
@@ -324,7 +345,8 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 
 	// If the group does not exist, create it.
 	// ----------------------------------------------------
-	// 假如具体唯一标识的分组不存在这个分组map里面，则进行创建。
+	// 假如当前告警的group labels的指纹在这个告警分组map里找不到，
+	// 则进行分组的创建。
 	ag, ok := group[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
@@ -332,7 +354,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		// 普罗米修斯的分组数量指标进行加一
 		d.metrics.aggrGroups.Inc()
 
-		// 开启新的协成，运行此唯一标识分组
+		// 开启新的协成，运行此告警指纹的分组
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			// 根据当前context的状态，来进行告警的处理。
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
@@ -419,47 +441,61 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 	return ag
 }
 
+// 获取聚合组的指纹
 func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
+// 获取聚合组的分组KEY
 func (ag *aggrGroup) GroupKey() string {
 	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
 }
 
+// String 方法，获取聚合组的分组KEY
 func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
+// run 运行具体的聚合分组，当这个方法被运行时，则代表已经有告警在这个聚合分组里了。
 func (ag *aggrGroup) run(nf notifyFunc) {
 	defer close(ag.done)
 	defer ag.next.Stop()
 
 	for {
 		select {
-		case now := <-ag.next.C:
+		case now := <-ag.next.C: // 分组的 timer 触发
 			// Give the notifications time until the next flush to
 			// finish before terminating them.
+			// --------------------------------------------------------------
+			// 创建发送告警的超时context，来避免下一轮告警要消息要触发了，但是上一轮
+			// 的消息还没有发送成功。
 			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
 
 			// The now time we retrieve from the ticker is the only reliable
 			// point of time reference for the subsequent notification pipeline.
 			// Calculating the current time directly is prone to flaky behavior,
 			// which usually only becomes apparent in tests.
+			// --------------------------------------------------------------
+			// 设置当前的触发时间到context里面，为了时间的准确性
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
+			// --------------------------------------------------------------
+			// 设置其他的一些聚合组的信息到上下文
 			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 
 			// Wait the configured interval before calling flush again.
+			// --------------------------------------------------------------
+			// 标识当前状态为已经FLUSH，并重置下一次timer的等待时间
 			ag.mtx.Lock()
 			ag.next.Reset(ag.opts.GroupInterval)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
+			// 通知告警到接收人
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
 			})
@@ -500,12 +536,16 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 	}
 }
 
+// 检查聚合组是否为空，是否没有告警
 func (ag *aggrGroup) empty() bool {
 	return ag.alerts.Empty()
 }
 
 // flush sends notifications for all new alerts.
+// ------------------------------------------------------
+// flush 发送所有新的告警消息
 func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
+	// 检查聚合组里是否为空
 	if ag.empty() {
 		return
 	}
@@ -518,6 +558,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	for _, alert := range alerts {
 		a := *alert
 		// Ensure that alerts don't resolve as time move forwards.
+		// -------------------------------------------------------
+		// 确保告警解决时间不是将来的一个时间
 		if !a.ResolvedAt(now) {
 			a.EndsAt = time.Time{}
 		}
@@ -527,10 +569,14 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
+	// 发送告警，如果发送成功
 	if notify(alertsSlice...) {
 		for _, a := range alertsSlice {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
+			// -------------------------------------------------------
+			// 删除已经解决的告警，并且只有这个告警并没有在出处理过程中被
+			// 重新插入才会删除，防止并发问题。
 			fp := a.Fingerprint()
 			got, err := ag.alerts.Get(fp)
 			if err != nil {

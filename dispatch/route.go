@@ -28,6 +28,8 @@ import (
 
 // DefaultRouteOpts are the defaulting routing options which apply
 // to the root route of a routing tree.
+// ------------------------------------------------------------
+// DefaultRouteOpts 默认分组等待路由配置，是整个路由树的根部。
 var DefaultRouteOpts = RouteOpts{
 	GroupWait:      30 * time.Second,
 	GroupInterval:  5 * time.Minute,
@@ -37,26 +39,37 @@ var DefaultRouteOpts = RouteOpts{
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
+// ------------------------------------------------------------
+// Route 是一个路由树的节点，定义了如何处理告警。
 type Route struct {
+	// 父节点，如果是跟则为nil
 	parent *Route
 
 	// The configuration parameters for matches of this route.
+	// ------------------------------------------------------------
+	// 路由配置，有如何命中这个路由和等待间隔，重发等等配置
 	RouteOpts RouteOpts
 
 	// Equality or regex matchers an alert has to fulfill to match
 	// this route.
+	// ------------------------------------------------------------
+	// 路由的匹配器，匹配告警是否命中这个路由
 	Matchers types.Matchers
 
 	// If true, an alert matches further routes on the same level.
+	// ------------------------------------------------------------
+	// 是否继续匹配？如果这个是true，则告警可以继续匹配同级的其他路由节点
 	Continue bool
 
 	// Children routes of this route.
+	// ------------------------------------------------------------
+	// 孩子路由节点
 	Routes []*Route
 }
 
 // NewRoute returns a new route.
 // ------------------------------------
-// 返回新的分组路由树
+// 根据配置返回新的分组路由树
 func NewRoute(cr *config.Route, parent *Route) *Route {
 	// Create default and overwrite with configured settings.
 	opts := DefaultRouteOpts
